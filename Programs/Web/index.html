@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CALM — Collective Animal Locomotion Models</title>
+<meta name="description" content="Simulateur interactif de modèles de locomotion animale collective.">
+<link rel="stylesheet" href="css/calm.css">
+</head>
+<body>
+
+<aside id="panel">
+
+  <header>
+    <div class="titles">
+      <h1>CALM</h1>
+      <p id="subtitle"></p>
+    </div>
+    <div class="switches">
+      <div id="langs"></div>
+      <button type="button" id="theme" aria-label="Thème">◐</button>
+    </div>
+  </header>
+
+  <div class="actions">
+    <button type="button" id="shuffle"></button>
+    <button type="button" id="play"></button>
+    <button type="button" id="reset"></button>
+  </div>
+
+  <section>
+    <h2 id="general-title"></h2>
+    <div id="general-params"></div>
+  </section>
+
+  <section>
+    <label for="model-select" id="model-label"></label>
+    <select id="model-select"></select>
+
+    <figure>
+      <img id="illustration" src="" alt="">
+    </figure>
+
+    <p id="description"></p>
+
+    <h2 id="params-title"></h2>
+    <div id="model-params"></div>
+  </section>
+
+</aside>
+
+<main id="stage">
+  <canvas id="view"></canvas>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

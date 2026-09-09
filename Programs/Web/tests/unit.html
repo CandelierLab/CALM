@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CALM — unit tests</title>
+</head>
+<body>
+<!--
+  Unit tests for the modules, run in a real browser because that is where the
+  code runs. tests/run.py loads this page and reads window.__results.
+  Opening it by hand shows the same report as text.
+-->
+<pre id="report">running…</pre>
+<canvas id="probe" width="400" height="400" style="display:none"></canvas>
+
+<script type="module">
+import { State, gaussian, NeighbourGrid } from '../js/engine.js';
+import { Renderer } from '../js/renderer.js';
+import { models, byId } from '../js/models/index.js';
+import { COMMON_PARAMS } from '../js/common.js';
+
+const results = [];
+const ok = (label, condition, detail = '') =>
+  results.push({ label, pass: !!condition, detail: String(detail) });
+
+// ─── State: the torus ────────────────────────────────────────────────────
+
+{
+  const state = new State(500);
+  ok('shuffle stays in the box',
+     [...state.x, ...state.y].every((v) => v >= 0 && v < 1));
+  ok('hue follows the initial x',
+     [...state.hue].every((h, i) => h === state.x[i]));
+
+  /* Walk hard and long enough that every agent crosses several edges. A speed
+   * of 0.05 per step over 400 steps is 20 box lengths. */
+  for (let k = 0; k < 400; k++) state.move(0.05, 0.3);
+
+  const inside = [...state.x, ...state.y].every((v) => v >= 0 && v < 1);
+  ok('positions wrap instead of drifting out', inside,
+     inside ? '' : `min ${Math.min(...state.x, ...state.y)}, max ${Math.max(...state.x, ...state.y)}`);
+  ok('no NaN after a long run',
+     [...state.x, ...state.y, ...state.a].every(Number.isFinite));
+}
+
+{
+  /* Moving left off the edge must land near 1, not on a negative coordinate:
+   * this is the JavaScript remainder trap the engine guards against. */
+  const state = new State(1);
+  state.x[0] = 0.01;
+  state.y[0] = 0.5;
+  state.a[0] = Math.PI;          // heading due -x
+  state.move(0.05, 0);           // no noise, so the heading is exact
+  ok('crossing the left edge lands on the right',
+     state.x[0] > 0.9 && state.x[0] < 1, state.x[0]);
+}
+
+{
+  const state = new State(1);
+  state.x[0] = 0.5;
+  state.y[0] = 0.99;
+  state.a[0] = Math.PI / 2;      // heading due +y
+  state.move(0.05, 0);
+  ok('crossing the top edge lands at the bottom',
+     state.y[0] > 0 && state.y[0] < 0.1, state.y[0]);
+}
+
+// ─── State: resize ───────────────────────────────────────────────────────
+
+{
+  const state = new State(10);
+  const before = [...state.x];
+
+  state.resize(25);
+  ok('growing keeps the existing agents',
+     state.n === 25 && before.every((v, i) => state.x[i] === v));
+  ok('growing seeds the newcomers',
+     [...state.x.subarray(10)].every((v) => v > 0 && v < 1));
+
+  state.resize(4);
+  ok('shrinking truncates and keeps the survivors',
+     state.n === 4 && [...state.x].every((v, i) => v === before[i]));
+
+  state.resize(4);
+  ok('resizing to the same count is a no-op', state.n === 4);
+}
+
+// ─── noise ───────────────────────────────────────────────────────────────
+
+{
+  const sample = Array.from({ length: 40000 }, gaussian);
+  const mean = sample.reduce((a, b) => a + b, 0) / sample.length;
+  const sd = Math.sqrt(sample.reduce((a, b) => a + (b - mean) ** 2, 0) / sample.length);
+
+  ok('gaussian is centred', Math.abs(mean) < 0.05, mean.toFixed(4));
+  ok('gaussian has unit variance', Math.abs(sd - 1) < 0.05, sd.toFixed(4));
+  ok('gaussian never returns infinity', sample.every(Number.isFinite));
+}
+
+// ─── the blind model is genuinely a null model ───────────────────────────
+
+{
+  const blind = byId('blind');
+  const state = new State(400);
+  const p = { speed: 0.006, noise: 0.1 };
+
+  for (let k = 0; k < 600; k++) blind.step(state, p);
+
+  /* Polarisation |⟨e^{ia}⟩|: near 1 if the group moves as one, near 0 if the
+   * headings are unrelated. Independent random walks must leave it small —
+   * 400 agents give a chance value around 1/sqrt(400) = 0.05. If this ever
+   * climbs, the blind agents have stopped being blind. */
+  let cx = 0, cy = 0;
+  for (let i = 0; i < state.n; i++) { cx += Math.cos(state.a[i]); cy += Math.sin(state.a[i]); }
+  const polarisation = Math.hypot(cx, cy) / state.n;
+
+  ok('blind agents do not polarise', polarisation < 0.2, polarisation.toFixed(3));
+  ok('blind agents spread over the box',
+     Math.min(...state.x) < 0.1 && Math.max(...state.x) > 0.9);
+}
+
+// ─── renderer: the wrap is drawn on both sides ───────────────────────────
+
+{
+  const canvas = document.getElementById('probe');
+  const renderer = new Renderer(canvas);
+  renderer.size = 400;
+  renderer.dark = true;
+
+  /* One agent sitting just inside the left edge. Its triangle sticks out, and
+   * the missing sliver has to appear against the right edge. */
+  const state = new State(1);
+  state.x[0] = 0.002;
+  state.y[0] = 0.5;
+  state.a[0] = Math.PI;
+  state.hue[0] = 0;               // pure red, unmistakable
+  renderer.refreshColors(state);
+  renderer.draw(state);
+
+  const ctx = canvas.getContext('2d');
+  const lit = (x0, y0, w, h) => {
+    const data = ctx.getImageData(x0, y0, w, h).data;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 100) n++;   // red channel
+    return n;
+  };
+
+  const dpr = window.devicePixelRatio || 1;
+  const band = Math.round(30 * dpr);
+  const mid = Math.round(canvas.height / 2) - band;
+
+  ok('agent painted at the left edge', lit(0, mid, band, 2 * band) > 0);
+  ok('its missing sliver reappears at the right edge',
+     lit(canvas.width - band, mid, band, 2 * band) > 0);
+  ok('nothing painted in an unrelated corner', lit(0, 0, band, band) === 0);
+}
+
+
+// ─── neighbour grid: identical to brute force, or it is worthless ────────
+
+{
+  /* The grid is an optimisation, so the only question that matters is whether
+   * it finds exactly what testing every pair would find. Checked over radii
+   * that straddle both of its regimes: below three cells per side it falls
+   * back to brute force, above it walks nine cells. */
+  const state = new State(300);
+  const radii = [0, 0.001, 0.01, 0.05, 0.1, 0.2, 0.34, 0.4, 0.6];
+  let mismatches = 0;
+  let checkedPairs = 0;
+
+  const gridded = new NeighbourGrid();
+  const brute = new NeighbourGrid();
+
+  for (const r of radii) {
+    gridded.build(state, r);
+    brute.build(state, r);
+    brute.bruteForce = true;          // force the reference path
+
+    for (let i = 0; i < state.n; i++) {
+      const fromGrid = [];
+      const fromBrute = [];
+      gridded.each(state, i, r, (j) => fromGrid.push(j));
+      brute.each(state, i, r, (j) => fromBrute.push(j));
+
+      fromGrid.sort((a, b) => a - b);
+      fromBrute.sort((a, b) => a - b);
+
+      checkedPairs += fromBrute.length;
+      if (fromGrid.join(',') !== fromBrute.join(',')) mismatches++;
+    }
+  }
+
+  ok('grid finds exactly what brute force finds', mismatches === 0,
+     `${mismatches} disagreements over ${checkedPairs} neighbours`);
+  ok('the comparison was not vacuous', checkedPairs > 1000, checkedPairs);
+}
+
+{
+  /* Offsets handed to the caller must be the torus-shortest ones, since that
+   * is what a model uses as a direction. An agent just inside the left edge
+   * and one just inside the right are neighbours, separated by a small
+   * negative dx — not by nearly a whole box. */
+  const state = new State(2);
+  state.x[0] = 0.01; state.y[0] = 0.5;
+  state.x[1] = 0.99; state.y[1] = 0.5;
+
+  const grid = new NeighbourGrid();
+  grid.build(state, 0.05);
+
+  const seen = [];
+  grid.each(state, 0, 0.05, (j, dx, dy) => seen.push([j, dx, dy]));
+
+  const other = seen.find(([j]) => j === 1);
+  ok('neighbours found across the seam', other !== undefined);
+  ok('separation is the short way round',
+     other && Math.abs(other[1] + 0.02) < 1e-6, other && other[1]);
+  ok('an agent is its own neighbour', seen.some(([j]) => j === 0));
+}
+
+{
+  const state = new State(1);
+  const grid = new NeighbourGrid();
+  grid.build(state, 0);
+
+  const seen = [];
+  grid.each(state, 0, 0, (j) => seen.push(j));
+  ok('zero radius keeps only the agent itself', seen.length === 1 && seen[0] === 0);
+}
+
+// ─── frozen headings: the update is synchronous ──────────────────────────
+
+{
+  const state = new State(5);
+  const frozen = state.freezeHeadings();
+  const copy = [...frozen];
+
+  state.a[0] += 1.0;                  // a model writing its result
+
+  ok('freezeHeadings snapshots rather than aliasing',
+     frozen[0] === copy[0] && state.a[0] !== frozen[0]);
+
+  state.resize(9);
+  ok('the snapshot buffer follows a resize',
+     state.freezeHeadings().length === 9);
+}
+
+// ─── Vicsek: the transition is the point ────────────────────────────────
+
+{
+  const vicsek = byId('vicsek');
+  ok('vicsek is registered', vicsek.id === 'vicsek');
+
+  const polarisation = (state) => {
+    let cx = 0, cy = 0;
+    for (let i = 0; i < state.n; i++) { cx += Math.cos(state.a[i]); cy += Math.sin(state.a[i]); }
+    return Math.hypot(cx, cy) / state.n;
+  };
+
+  /* Wide radius, little noise: alignment wins and the group ends up moving as
+   * one. This is the ordered phase, and if it ever stops appearing the model
+   * has broken. */
+  {
+    const state = new State(400);
+    for (let k = 0; k < 1500; k++) vicsek.step(state, { speed: 0.006, noise: 0.02, r: 0.15 });
+    const phi = polarisation(state);
+    ok('wide radius and low noise give an ordered phase', phi > 0.5, phi.toFixed(3));
+  }
+
+  /* Same radius, heavy noise: order is destroyed. */
+  {
+    const state = new State(400);
+    for (let k = 0; k < 1500; k++) vicsek.step(state, { speed: 0.006, noise: 1.5, r: 0.15 });
+    const phi = polarisation(state);
+    ok('heavy noise destroys the order', phi < 0.4, phi.toFixed(3));
+  }
+
+  /* At r = 0 an agent sees only itself, so Vicsek must reduce to the blind
+   * model rather than misbehave. */
+  {
+    const state = new State(400);
+    for (let k = 0; k < 800; k++) vicsek.step(state, { speed: 0.006, noise: 0.1, r: 0 });
+    const phi = polarisation(state);
+    ok('zero radius reduces to the blind model', phi < 0.2, phi.toFixed(3));
+    ok('zero radius leaves the state finite',
+       [...state.x, ...state.y, ...state.a].every(Number.isFinite));
+  }
+
+  {
+    const state = new State(600);
+    for (let k = 0; k < 300; k++) vicsek.step(state, { speed: 0.01, noise: 0.1, r: 0.08 });
+    ok('vicsek keeps the agents in the box',
+       [...state.x, ...state.y].every((v) => v >= 0 && v < 1));
+    ok('vicsek produces no NaN',
+       [...state.x, ...state.a].every(Number.isFinite));
+  }
+
+  /* The circular mean is not the arithmetic one. Two agents heading just
+   * either side of zero must average to zero, not to a half turn. */
+  {
+    const state = new State(2);
+    state.x[0] = 0.5; state.y[0] = 0.5; state.a[0] = 0.02;
+    state.x[1] = 0.5; state.y[1] = 0.5; state.a[1] = 2 * Math.PI - 0.02;
+
+    vicsek.step(state, { speed: 0, noise: 0, r: 0.1 });
+
+    const wrapped = Math.atan2(Math.sin(state.a[0]), Math.cos(state.a[0]));
+    ok('headings averaged the circular way', Math.abs(wrapped) < 1e-6, wrapped);
+  }
+}
+
+
+// ─── Aoki-Reynolds-Couzin ───────────────────────────────────────────────
+
+{
+  const arc = byId('aoki-reynolds-couzin');
+  ok('aoki-reynolds-couzin is registered', arc.id === 'aoki-reynolds-couzin');
+
+  const polarisation = (state) => {
+    let cx = 0, cy = 0;
+    for (let i = 0; i < state.n; i++) { cx += Math.cos(state.a[i]); cy += Math.sin(state.a[i]); }
+    return Math.hypot(cx, cy) / state.n;
+  };
+
+  /* Mean distance to the nearest neighbour, in box units. Cohesion shows up
+   * here before it shows up anywhere else: attraction pulls agents together,
+   * so this drops well below the uniform-random value. */
+  const meanNearest = (state) => {
+    let total = 0;
+    for (let i = 0; i < state.n; i++) {
+      let best = Infinity;
+      for (let j = 0; j < state.n; j++) {
+        if (j === i) continue;
+        let dx = state.x[j] - state.x[i]; dx -= Math.round(dx);
+        let dy = state.y[j] - state.y[i]; dy -= Math.round(dy);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) best = d2;
+      }
+      total += Math.sqrt(best);
+    }
+    return total / state.n;
+  };
+
+  /* Alignment zone dominant: the group ends up moving together. */
+  {
+    const state = new State(300);
+    const p = { speed: 0.006, noise: 0.02, rrep: 0, ral: 0.3, ratt: 0.3, alpha: 0.4 };
+    for (let k = 0; k < 1200; k++) arc.step(state, p);
+    ok('a dominant alignment zone polarises the group', polarisation(state) > 0.5,
+       polarisation(state).toFixed(3));
+  }
+
+  /* Attraction zone dominant: the group gathers instead of aligning. */
+  {
+    const state = new State(300);
+    const loose = meanNearest(state);
+    const p = { speed: 0.006, noise: 0.05, rrep: 0.01, ral: 0.01, ratt: 0.4, alpha: 0.4 };
+    for (let k = 0; k < 1500; k++) arc.step(state, p);
+    const tight = meanNearest(state);
+    ok('a dominant attraction zone gathers the agents', tight < loose * 0.8,
+       `${loose.toFixed(4)} → ${tight.toFixed(4)}`);
+  }
+
+  /* Repulsion, deterministically: one agent, one neighbour in its repulsion
+   * zone, no noise and no motion. The turn must be away from the neighbour.
+   *
+   * A neighbour exactly ahead is a bifurcation — left and right are equally
+   * good ways to flee — so only the magnitude is asserted there. A neighbour
+   * off to one side has a definite answer, and that is where the sign of the
+   * rule is actually pinned down. */
+  {
+    const flee = (nx, ny) => {
+      const state = new State(2);
+      state.x[0] = 0.5; state.y[0] = 0.5; state.a[0] = 0;   // heading +x
+      state.x[1] = nx;  state.y[1] = ny;  state.a[1] = 0;
+      arc.step(state, { speed: 0, noise: 0, rrep: 0.05, ral: 0.05, ratt: 0.05, alpha: 0 });
+      return state.a[0];
+    };
+
+    const ahead = flee(0.51, 0.5);
+    ok('a neighbour dead ahead triggers a full-turn attempt',
+       Math.abs(Math.abs(ahead) - Math.PI / 6) < 1e-6, ahead.toFixed(4));
+
+    const onTheLeft = flee(0.5, 0.51);
+    ok('a neighbour on the left turns the agent right',
+       Math.abs(onTheLeft + Math.PI / 6) < 1e-6, onTheLeft.toFixed(4));
+
+    const onTheRight = flee(0.5, 0.49);
+    ok('a neighbour on the right turns the agent left',
+       Math.abs(onTheRight - Math.PI / 6) < 1e-6, onTheRight.toFixed(4));
+  }
+
+  /* Repulsion, statistically.
+   *
+   * Note what this cannot be tested against: on a torus of fixed area the
+   * mean density is imposed, so repulsion cannot spread the agents out in any
+   * global sense — the first version of this test asserted that and was
+   * wrong. What repulsion does is open a hole in the pair correlation at the
+   * scale of its own zone, so the probe distance has to be measured in units
+   * of Rrep rather than fixed. Compared against blind walks over the same
+   * time with the same count. */
+  {
+    const closePairs = (state, d) => {
+      const d2 = d * d;
+      let n = 0;
+      for (let i = 0; i < state.n; i++) {
+        for (let j = i + 1; j < state.n; j++) {
+          let dx = state.x[j] - state.x[i]; dx -= Math.round(dx);
+          let dy = state.y[j] - state.y[i]; dy -= Math.round(dy);
+          if (dx * dx + dy * dy < d2) n++;
+        }
+      }
+      return n;
+    };
+
+    const rrep = 0.04;
+    const probe = 0.6 * rrep;
+
+    const repelling = new State(200);
+    for (let k = 0; k < 1500; k++) {
+      arc.step(repelling, { speed: 0.006, noise: 0.02, rrep, ral: rrep, ratt: rrep, alpha: 0 });
+    }
+
+    const control = new State(200);
+    for (let k = 0; k < 1500; k++) {
+      byId('blind').step(control, { speed: 0.006, noise: 0.02 });
+    }
+
+    const repelled = closePairs(repelling, probe);
+    const chance = closePairs(control, probe);
+    ok('repulsion opens a hole at the scale of its zone', repelled < chance * 0.5,
+       `${repelled} pairs closer than ${probe.toFixed(3)}, against ${chance} for blind walks`);
+  }
+
+  /* All radii at zero: nobody is in any zone, so it reduces to blind walks. */
+  {
+    const state = new State(300);
+    const p = { speed: 0.006, noise: 0.1, rrep: 0, ral: 0, ratt: 0, alpha: 0 };
+    for (let k = 0; k < 600; k++) arc.step(state, p);
+    ok('zero radii reduce to the blind model', polarisation(state) < 0.25,
+       polarisation(state).toFixed(3));
+  }
+
+  /* The zones must stay nested even when the sliders are set out of order. */
+  {
+    const state = new State(150);
+    const p = { speed: 0.006, noise: 0.05, rrep: 0.3, ral: 0.05, ratt: 0.01, alpha: 0.4 };
+    for (let k = 0; k < 300; k++) arc.step(state, p);
+    ok('crossed radii do not break the model',
+       [...state.x, ...state.y, ...state.a].every(Number.isFinite));
+    ok('crossed radii keep the agents in the box',
+       [...state.x, ...state.y].every((v) => v >= 0 && v < 1));
+  }
+
+  /* The per-step turn is capped, which is what allows milling. */
+  {
+    const state = new State(2);
+    state.x[0] = 0.5; state.y[0] = 0.5; state.a[0] = 0;
+    state.x[1] = 0.5; state.y[1] = 0.42; state.a[1] = 0;   // straight behind-ish, in the attraction zone
+    const p = { speed: 0, noise: 0, rrep: 0, ral: 0, ratt: 0.2, alpha: 0 };
+    arc.step(state, p);
+    ok('the turn is capped at pi/6', Math.abs(state.a[0]) <= Math.PI / 6 + 1e-6,
+       state.a[0].toFixed(4));
+  }
+}
+
+// ─── Peruani ────────────────────────────────────────────────────────────
+
+{
+  const peruani = byId('peruani');
+  ok('peruani is registered', peruani.id === 'peruani');
+
+  const meanNearest = (state) => {
+    let total = 0;
+    for (let i = 0; i < state.n; i++) {
+      let best = Infinity;
+      for (let j = 0; j < state.n; j++) {
+        if (j === i) continue;
+        let dx = state.x[j] - state.x[i]; dx -= Math.round(dx);
+        let dy = state.y[j] - state.y[i]; dy -= Math.round(dy);
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best) best = d2;
+      }
+      total += Math.sqrt(best);
+    }
+    return total / state.n;
+  };
+
+  /* The signature of the model: position-based attraction inside the cone
+   * gathers the agents, with no velocity alignment anywhere in the rule. */
+  {
+    const state = new State(300);
+    const loose = meanNearest(state);
+    const p = { speed: 0.006, noise: 0.05, R: 0.15, beta: 1.2, gamma: 0.5 };
+    for (let k = 0; k < 2000; k++) peruani.step(state, p);
+    const tight = meanNearest(state);
+    ok('the vision cone gathers the agents', tight < loose * 0.8,
+       `${loose.toFixed(4)} → ${tight.toFixed(4)}`);
+    ok('peruani produces no NaN',
+       [...state.x, ...state.y, ...state.a].every(Number.isFinite));
+    ok('peruani keeps the agents in the box',
+       [...state.x, ...state.y].every((v) => v >= 0 && v < 1));
+  }
+
+  /* A closed cone sees nothing, so the agents fall back to blind walks and
+   * must not gather at all. */
+  {
+    const state = new State(300);
+    const loose = meanNearest(state);
+    const p = { speed: 0.006, noise: 0.1, R: 0.15, beta: 0, gamma: 0.5 };
+    for (let k = 0; k < 1000; k++) peruani.step(state, p);
+    ok('a closed cone reduces to the blind model',
+       Math.abs(meanNearest(state) - loose) < loose * 0.25,
+       `${loose.toFixed(4)} → ${meanNearest(state).toFixed(4)}`);
+  }
+
+  /* The interaction is an attraction, and only towards what is in the cone.
+   * One agent, one neighbour dead ahead-left: it must turn left, by γ·sin of
+   * the bearing. */
+  {
+    const state = new State(2);
+    state.x[0] = 0.5; state.y[0] = 0.5; state.a[0] = 0;         // heading +x
+    state.x[1] = 0.5 + 0.05 * Math.cos(0.4);
+    state.y[1] = 0.5 + 0.05 * Math.sin(0.4);                    // bearing +0.4 rad
+    state.a[1] = 3.0;                                           // deliberately unrelated
+
+    const p = { speed: 0, noise: 0, R: 0.1, beta: 1.5, gamma: 0.5 };
+    peruani.step(state, p);
+
+    ok('turns towards a neighbour in the cone',
+       Math.abs(state.a[0] - 0.5 * Math.sin(0.4)) < 1e-5, state.a[0].toFixed(6));
+  }
+
+  {
+    /* The same neighbour, now behind: outside the cone, so no turn at all.
+     * This is the non-reciprocity — and it also shows the rule ignores the
+     * neighbour's own heading. */
+    const state = new State(2);
+    state.x[0] = 0.5; state.y[0] = 0.5; state.a[0] = 0;
+    state.x[1] = 0.45; state.y[1] = 0.5; state.a[1] = 1.0;
+
+    const p = { speed: 0, noise: 0, R: 0.1, beta: 1.0, gamma: 0.5 };
+    peruani.step(state, p);
+
+    ok('ignores a neighbour outside the cone', state.a[0] === 0, state.a[0]);
+  }
+
+  {
+    /* Non-reciprocity, stated directly: i sees j, j does not see i. Both are
+     * heading +x, j is ahead of i. */
+    const state = new State(2);
+    state.x[0] = 0.5;  state.y[0] = 0.5;  state.a[0] = 0;
+    state.x[1] = 0.55; state.y[1] = 0.52; state.a[1] = 0;
+
+    const p = { speed: 0, noise: 0, R: 0.1, beta: 1.0, gamma: 0.5 };
+    peruani.step(state, p);
+
+    ok('the follower turns', state.a[0] !== 0, state.a[0].toFixed(5));
+    ok('the leader does not: the interaction is non-reciprocal',
+       state.a[1] === 0, state.a[1]);
+  }
+}
+
+// ─── registry contract ──────────────────────────────────────────────────
+
+{
+  ok('registry is not empty', models.length > 0);
+  ok('ids are unique', new Set(models.map((m) => m.id)).size === models.length);
+
+  /* Checked for every model in the registry, so the day Vicsek or
+   * Aoki-Couzin lands, an incomplete descriptor is caught here rather than by
+   * a blank panel in the interface. */
+  for (const m of models) {
+    ok(`${m.id}: bilingual name`, m.name?.fr && m.name?.en);
+    ok(`${m.id}: bilingual description`, m.description?.fr && m.description?.en);
+    ok(`${m.id}: illustration named`, typeof m.illustration === 'string' && m.illustration);
+    ok(`${m.id}: params is a list`, Array.isArray(m.params));
+    ok(`${m.id}: step is callable`, typeof m.step === 'function');
+
+    for (const p of m.params) {
+      const complete = p.key && p.label && Number.isFinite(p.min)
+        && Number.isFinite(p.max) && Number.isFinite(p.step)
+        && Number.isFinite(p.value) && Number.isInteger(p.decimals);
+      ok(`${m.id}/${p.key}: descriptor complete`, complete, JSON.stringify(p));
+      ok(`${m.id}/${p.key}: default within bounds`, p.value >= p.min && p.value <= p.max);
+    }
+
+    /* A model must not claim a key that the general panel already owns:
+     * the two are flattened into one object at step time. */
+    const clash = m.params.filter((p) => COMMON_PARAMS.some((c) => c.key === p.key));
+    ok(`${m.id}: no clash with the general parameters`, clash.length === 0,
+       clash.map((p) => p.key).join(','));
+  }
+
+  ok('byId falls back to the first model', byId('no-such-model') === models[0]);
+}
+
+// ─── report ──────────────────────────────────────────────────────────────
+
+window.__results = results;
+document.getElementById('report').textContent =
+  results.map((r) => `${r.pass ? 'PASS' : 'FAIL'} ${r.label}${r.detail ? ' — ' + r.detail : ''}`)
+         .join('\n')
+  + `\n\n${results.filter((r) => r.pass).length} passed, `
+  + `${results.filter((r) => !r.pass).length} failed`;
+</script>
+</body>
+</html>

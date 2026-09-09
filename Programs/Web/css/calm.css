@@ -1,0 +1,253 @@
+/*
+ * CALM — stylesheet
+ *
+ * Both themes are defined as tokens on :root, and the theme is chosen by the
+ * data-theme attribute that ui.js sets from the system preference. Nothing
+ * here depends on a build step.
+ */
+
+:root {
+  --bg: #f4f4f5;
+  --panel: #fff;
+  --ink: #18181b;
+  --muted: #71717a;
+  --line: #e4e4e7;
+  --accent: #2563eb;
+  --track: #d4d4d8;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #09090b;
+  --panel: #18181b;
+  --ink: #f4f4f5;
+  --muted: #a1a1aa;
+  --line: #27272a;
+  --accent: #60a5fa;
+  --track: #3f3f46;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* ─── panel ───────────────────────────────────────────────────────────── */
+
+#panel {
+  flex: 0 0 22rem;
+  padding: 1.25rem;
+  background: var(--panel);
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+  max-height: 100vh;
+}
+
+#panel header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-bottom: 1.25rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 650;
+  letter-spacing: .06em;
+}
+
+#subtitle {
+  margin: .15rem 0 0;
+  font-size: .8rem;
+  color: var(--muted);
+}
+
+.switches {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-shrink: 0;
+}
+
+#langs { display: flex; gap: .25rem; }
+
+h2 {
+  margin: 1.5rem 0 .6rem;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+}
+
+section > h2:first-child { margin-top: 0; }
+
+/* ─── controls ────────────────────────────────────────────────────────── */
+
+button, select {
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .3rem .55rem;
+  cursor: pointer;
+}
+
+button:hover, select:hover { border-color: var(--accent); }
+
+/* Two primary actions side by side, the parameter reset on its own line
+ * below: it is a secondary action, and giving it a third of the row would have
+ * squeezed the two labels onto three lines each. */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .35rem;
+
+  /* The first section heading below has its top margin cancelled, being the
+   * first child of its section, so the breathing room has to come from here. */
+  margin-bottom: 1.6rem;
+}
+
+.actions button {
+  font-size: .85rem;
+  line-height: 1.25;
+}
+
+#reset {
+  grid-column: 1 / -1;
+  color: var(--muted);
+}
+
+#reset:hover { color: var(--ink); }
+
+#play.paused {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+#langs button, #theme {
+  padding: .2rem .45rem;
+  font-size: .75rem;
+  line-height: 1.3;
+}
+
+#langs button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+label#model-label {
+  display: block;
+  margin-bottom: .4rem;
+  font-size: .72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+}
+
+#model-select { width: 100%; }
+
+figure {
+  margin: 1rem 0;
+  text-align: center;
+}
+
+/* The illustrations have very different aspect ratios — the Vicsek one is a
+ * wide strip, the Aoki-Reynolds-Couzin one is nearly square. A tight
+ * max-height caps the near-square ones by their height, leaving them using
+ * less than half the panel's width and far too small to read. Letting them
+ * fill the width and giving the height a generous ceiling sizes each one by
+ * whichever dimension actually binds. */
+#illustration {
+  width: 100%;
+  height: auto;
+  max-height: 15rem;
+  object-fit: contain;
+}
+
+#description {
+  margin: 0;
+  font-size: .86rem;
+  color: var(--muted);
+}
+
+/* ─── parameter rows ──────────────────────────────────────────────────── */
+
+.param {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: .1rem .5rem;
+  margin-bottom: .85rem;
+}
+
+.param label {
+  font-size: .85rem;
+}
+
+.param output {
+  font-variant-numeric: tabular-nums;
+  font-size: .8rem;
+  color: var(--muted);
+}
+
+.param input[type="range"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  margin: .2rem 0 0;
+  accent-color: var(--accent);
+  background: transparent;
+  cursor: grab;
+}
+
+.param input[type="range"]:active { cursor: grabbing; }
+
+/* ─── stage ───────────────────────────────────────────────────────────── */
+
+#stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  min-width: 0;
+}
+
+/* The canvas is square and fits the shorter side of the stage. aspect-ratio
+ * plus the two max-* rules keep it square without any measuring in script. */
+#view {
+  aspect-ratio: 1;
+  width: 100%;
+  height: auto;
+  max-width: min(100%, calc(100vh - 2rem));
+  max-height: 100%;
+  border-radius: .3rem;
+}
+
+/* ─── narrow screens ──────────────────────────────────────────────────── */
+
+@media (max-width: 48rem) {
+  body { flex-direction: column-reverse; }
+
+  #panel {
+    flex: none;
+    max-height: none;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  #stage { padding: .5rem; }
+
+  #view { max-width: min(100%, calc(100vh - 1rem)); }
+}

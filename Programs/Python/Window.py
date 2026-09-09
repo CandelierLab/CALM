@@ -477,7 +477,7 @@ class Window(QWidget):
       case 'fr':
 
         # Window title
-        self.setWindowTitle('Comportement Collectif Artificiel')
+        self.setWindowTitle('CALM — Modèles de locomotion animale collective')
 
         # Upper commands
         self.bShuffle.setText('Répartir aléatoirement')
@@ -518,7 +518,7 @@ class Window(QWidget):
       case 'en':
         
         # Window title
-        self.setWindowTitle('Artificial Collective Behavior')
+        self.setWindowTitle('CALM — Collective Animal Locomotion Models')
 
         # Randomization
         self.bShuffle.setText('Shuffle agents')

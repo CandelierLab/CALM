@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- CALM — Peruani agents: attraction inside a vision cone, no alignment. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="214.70172mm" height="100mm"
+     viewBox="0 0 214.70172 100" version="1.1">
+  <defs>
+    <path id="tri" d="M 5.5,0 L -3.5,3.4 L -3.5,-3.4 Z"/>
+  </defs>
+  <g transform="translate(47,0)">
+
+    <!-- vision cone: radius R, half-angle beta -->
+    <path d="M 60,50 L 95.35,7.87 A 55,55 0 0 1 95.35,92.13 Z"
+          fill="#dbe8f7" stroke="none"/>
+
+    <!-- heading axis and the radius R -->
+    <path d="M 60,50 L 126,50" stroke="#8c8c8c" stroke-width="0.7"
+          stroke-dasharray="3,2.5" fill="none"/>
+    <path d="M 60,50 L 95.35,92.13" stroke="#8c8c8c" stroke-width="0.7"
+          stroke-dasharray="3,2.5" fill="none"/>
+    <!-- the beta angle, between the axis and the cone edge -->
+    <path d="M 82,50 A 22,22 0 0 0 74.14,32.15" stroke="#8c8c8c"
+          stroke-width="0.7" fill="none"/>
+
+    <!-- neighbours inside the cone: seen, whatever way they point -->
+    <use href="#tri" transform="translate(100,30) rotate(200)" fill="#000000"/>
+    <use href="#tri" transform="translate(110,60) rotate(100)" fill="#000000"/>
+    <use href="#tri" transform="translate(85,65) rotate(-60)" fill="#000000"/>
+
+    <!-- outside the cone: behind, beside, and beyond R -->
+    <use href="#tri" transform="translate(30,35) rotate(20)" fill="#b3b3b3"/>
+    <use href="#tri" transform="translate(55,12) rotate(45)" fill="#b3b3b3"/>
+    <use href="#tri" transform="translate(140,45) rotate(-15)" fill="#b3b3b3"/>
+
+    <!-- the turn: towards the mean position of what is seen -->
+    <circle cx="98.3" cy="51.7" r="1.6" fill="#de8787"/>
+    <path d="M 70,50.3 L 91,51.4" stroke="#de8787" stroke-width="1.6" fill="none"/>
+    <path d="M 96,51.7 L 90.5,49.4 L 90.5,53.6 Z" fill="#de8787"/>
+
+    <!-- the focal agent, on top of its own cone -->
+    <use href="#tri" transform="translate(60,50)" fill="#0088aa"/>
+
+    <text x="76" y="43.5" font-family="serif" font-style="italic"
+          font-size="9" fill="#000000">β</text>
+    <text x="78" y="79" font-family="serif" font-style="italic"
+          font-size="9" fill="#000000">R</text>
+  </g>
+</svg>
