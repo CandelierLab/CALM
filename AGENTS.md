@@ -11,14 +11,21 @@ CALM, pour *Collective Animal Locomotion Models*. Le logiciel s'appelait COCOA
 Renommage effectué : dépôt GitHub `CandelierLab/CALM`, dossier local
 `Vulgarisation/CALM`, et `origin` recalé sur la nouvelle URL.
 
-## Deux implémentations
+## Où est quoi
 
-```
-Programs/Python/     référence PyQt5 : main.py, Window.py, Animation.py, Engine.py
-Programs/Web/        le logiciel web, en cours de développement
+`Programs/Web/` est le logiciel. La version de bureau PyQt5 dont il est le
+portage — `Programs/Python/` : `main.py`, `Window.py`, `Animation.py`,
+`Engine.py` — est archivée sur la branche **`desktop-pyqt5`** et n'est plus
+dans l'arbre de `master`.
+
+Elle reste la référence des modèles, et c'est là qu'il faut aller chercher les
+perceptrons :
+
+```bash
+git show desktop-pyqt5:Programs/Python/Engine.py
 ```
 
-La version Python n'utilise **pas** lib-anim : `Animation.py` embarque sa propre
+Cette version n'utilisait **pas** lib-anim : `Animation.py` embarque sa propre
 couche Qt (`item`, `polygon`, `Animation2d`), un ancêtre de lib-anim figé sur
 PyQt5, dont les items héritent directement de `QGraphicsPolygonItem`. C'est
 pourquoi le portage web est parti de zéro plutôt que d'un backend lib-anim.
@@ -264,8 +271,8 @@ n'a **pas** été modifié, conformément à la consigne.
    portables) coûte plusieurs semaines contre quelques jours pour le logiciel
    lui-même. À reconsidérer si l'objectif devient de publier toutes les
    animations scientifiques du laboratoire depuis une source Python unique.
-5. **Les deux implémentations cohabitent** le temps du portage. La version
-   Python reste la référence de vérification des modèles.
+5. **La version Qt est archivée** sur la branche `desktop-pyqt5` et retirée de
+   `master`. Elle reste la référence de vérification des modèles.
 
 ## Modèles portés
 
@@ -300,12 +307,12 @@ réorientation, et le pas vaut une unité de temps, donc `γ` se lit comme `γ·
 
 ## Reste à porter
 
-Les perceptrons, dans `agent.update` de `Programs/Python/Engine.py` (branche
-`Perceptron`), demandent le champ de perception en tranches angulaires
-(`agent.perceive`) — la grille rend déjà les décalages toroïdaux vers chaque
-voisin, ce qui en est la moitié.
+Les perceptrons, dans `agent.update` de la version archivée
+(`git show desktop-pyqt5:Programs/Python/Engine.py`, branche `Perceptron`),
+demandent le champ de perception en tranches angulaires (`agent.perceive`) — la
+grille rend déjà les décalages toroïdaux vers chaque voisin, ce qui en est la
+moitié.
 
 ## Reste à faire
 
-- Porter Aoki-Couzin et les perceptrons.
-- Décider du sort de `Programs/Python` une fois le portage terminé.
+- Porter les perceptrons, le dernier modèle de la version Qt.

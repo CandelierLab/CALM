@@ -4,17 +4,21 @@ Un simulateur interactif de modèles de mouvement collectif, destiné à la
 vulgarisation : on choisit un modèle, on déplace les curseurs, et la simulation
 se réorganise sous la main.
 
-Deux implémentations cohabitent le temps du portage :
+Le logiciel tourne dans le navigateur, sans dépendance ni étape de
+compilation : [`Programs/Web`](Programs/Web).
 
-| Dossier | État | Interface |
-| --- | --- | --- |
-| [`Programs/Web`](Programs/Web) | en développement | navigateur, JavaScript, sans dépendance |
-| [`Programs/Python`](Programs/Python) | référence historique | PyQt5, application de bureau |
+La version de bureau en PyQt5, dont celle-ci est le portage, est archivée sur
+la branche **`desktop-pyqt5`** :
 
-La version web est celle qui sera publiée ; la version Python reste la
-référence contre laquelle les modèles sont vérifiés.
+```bash
+git switch desktop-pyqt5      # la version Qt, dans Programs/Python
+git switch master             # revenir à la version web
+```
 
-## Lancer la version web
+Elle reste la référence contre laquelle les modèles ont été vérifiés, mais
+n'est plus maintenue.
+
+## Lancer le logiciel
 
 Aucune dépendance, aucune étape de compilation : les modules ES sont chargés
 tels quels par le navigateur. Il faut simplement un serveur HTTP, parce que les
@@ -26,14 +30,6 @@ python3 -m http.server 8000
 ```
 
 Puis <http://127.0.0.1:8000/>. Toute modification est visible au rechargement.
-
-## Lancer la version Python
-
-```bash
-conda install numpy pyqt5 qdarkstyle
-cd Programs/Python
-python main.py
-```
 
 ## Tests
 
@@ -76,9 +72,10 @@ Quatre modèles sont disponibles :
   pas réciproque, on obtient des agrégats, des rondes et des files à meneurs.
   D'après Barberis & Peruani, *Phys. Rev. Lett.* **117**, 248001 (2016).
 
-Les perceptrons existent dans la version Python et restent à porter. Chaque
-modèle est un fichier de [`Programs/Web/js/models/`](Programs/Web/js/models) et
-une ligne dans le registre ; l'interface s'en déduit.
+Les perceptrons existent dans la version Qt archivée et restent à porter.
+Chaque modèle est un fichier de
+[`Programs/Web/js/models/`](Programs/Web/js/models) et une ligne dans le
+registre ; l'interface s'en déduit.
 
 ## Licence
 
