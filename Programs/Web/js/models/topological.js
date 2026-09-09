@@ -28,8 +28,8 @@ export default {
   id: 'topological',
 
   name: {
-    fr: 'Agents topologiques',
-    en: 'Topological agents',
+    fr: 'Alignement topologique (Ballerini)',
+    en: 'Topological alignment (Ballerini)',
   },
 
   description: {

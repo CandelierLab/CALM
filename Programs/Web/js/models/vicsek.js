@@ -26,8 +26,8 @@ export default {
   id: 'vicsek',
 
   name: {
-    fr: 'Agents de Vicsek',
-    en: 'Vicsek agents',
+    fr: 'Alignement métrique (Vicsek)',
+    en: 'Metric alignment (Vicsek)',
   },
 
   description: {

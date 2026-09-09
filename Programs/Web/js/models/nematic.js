@@ -29,8 +29,8 @@ export default {
   id: 'nematic',
 
   name: {
-    fr: 'Agents nématiques',
-    en: 'Nematic agents',
+    fr: 'Alignement nématique',
+    en: 'Nematic alignment',
   },
 
   description: {

@@ -302,19 +302,31 @@ n'a **pas** été modifié, conformément à la consigne.
 
 | Modèle | Paramètres propres | Origine |
 | --- | --- | --- |
-| Agents aveugles | aucun | modèle nul |
-| Agents de Vicsek | `r` | version Qt |
-| Agents topologiques | `k` | PNAS **105**, 1232 (2008) |
-| Agents nématiques | `r` | PRL **104**, 184502 (2010) |
-| Agents d'Aoki-Reynolds-Couzin | `Rrep`, `Ral`, `Ratt`, `α` | version Qt |
-| Agents de Peruani | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
-| Particules actives répulsives (MIPS) | `σ`, `A` | voir la réserve ci-dessous |
-| Perceptrons | `w1`…`w4`, `δ` | **à porter** |
+| Nom affiché | `id` | Paramètres propres | Origine |
+| --- | --- | --- | --- |
+| Agents aveugles | `blind` | aucun | modèle nul |
+| Alignement métrique (Vicsek) | `vicsek` | `r` | version Qt |
+| Alignement topologique (Ballerini) | `topological` | `k` | PNAS **105**, 1232 (2008) |
+| Alignement nématique | `nematic` | `r` | PRL **104**, 184502 (2010) |
+| Boids (Aoki - Reynolds - Couzin) | `aoki-reynolds-couzin` | `Rrep`, `Ral`, `Ratt`, `α` | version Qt |
+| Cône de vision (Peruani) | `peruani` | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
+| Séparation de phase (MIPS) | `mips` | `σ`, `A` | voir la réserve ci-dessous |
+| Perceptrons | — | `w1`…`w4`, `δ` | **à porter** |
 
-**Aoki-Reynolds-Couzin** porte le nom complet des trois contributions : Aoki
-(1982) pour les zones concentriques, Reynolds (1987) pour les trois règles des
-*boids*, Couzin *et al.* (2002) pour le diagramme de phases. La version Qt
-l'appelait « Aoki-Couzin ».
+Les noms affichés désignent le **mécanisme** plutôt que les auteurs, avec la
+référence entre parenthèses : c'est ce que le visiteur a besoin de savoir pour
+choisir, et cela met les trois formes d'alignement côte à côte dans le
+sélecteur.
+
+Les `id` ne suivent **pas** les noms affichés, et ne doivent pas les suivre :
+ils apparaissent dans le fragment d'URL, donc renommer un modèle dans
+l'interface ne doit pas casser un lien que quelqu'un a gardé. `aoki-reynolds-couzin`
+reste l'id du modèle affiché « Boids ».
+
+**Boids** porte le nom complet des trois contributions : Aoki (1982) pour les
+zones concentriques, Reynolds (1987) pour les trois règles des *boids* — d'où
+le nom affiché — et Couzin *et al.* (2002) pour le diagramme de phases. La
+version Qt l'appelait « Aoki-Couzin ».
 
 Un écart signalé avec la référence Python : la branche « alignement **et**
 attraction » y est écrite `if Nal & Natt`, un *et* bit-à-bit sur deux

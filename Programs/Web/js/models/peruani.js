@@ -36,8 +36,8 @@ export default {
   id: 'peruani',
 
   name: {
-    fr: 'Agents de Peruani',
-    en: 'Peruani agents',
+    fr: 'Cône de vision (Peruani)',
+    en: 'Vision cone (Peruani)',
   },
 
   description: {

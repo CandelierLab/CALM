@@ -43,10 +43,14 @@ import mips from './mips.js';
 /* Order is the order of the selector, and the first one is the default: the
  * blind agents come first because they are the null model everything else is
  * read against. */
-/* Roughly in order of how much machinery each one needs, which is also a
- * usable reading order: no interaction, alignment by distance, alignment by
- * count, alignment on an axis, three zones, position-based attraction, and
- * finally no orientation interaction at all. */
+/* A reading order, not an alphabet: no interaction at all, then the three
+ * flavours of alignment (by distance, by count, on an axis), then the zonal
+ * boids, then position-based attraction, and finally no orientation
+ * interaction again — but with bodies that collide.
+ *
+ * The ids are not the display names and never follow them: they appear in the
+ * URL fragment, so renaming a model in the interface must not break a link
+ * somebody saved. */
 export const models = [
   blind,
   vicsek,

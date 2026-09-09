@@ -43,8 +43,8 @@ export default {
   id: 'aoki-reynolds-couzin',
 
   name: {
-    fr: 'Agents d’Aoki-Reynolds-Couzin',
-    en: 'Aoki-Reynolds-Couzin agents',
+    fr: 'Boids (Aoki - Reynolds - Couzin)',
+    en: 'Boids (Aoki - Reynolds - Couzin)',
   },
 
   description: {
