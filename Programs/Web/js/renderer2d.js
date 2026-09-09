@@ -1,5 +1,5 @@
 /*
- * CALM — Canvas 2D renderer
+ * CALM — Canvas 2D renderer (the 2D view)
  *
  * Each agent is an oriented triangle, with the same proportions as the Qt
  * reference (Programs/Python/Animation.py): tip at +s along the heading, base
@@ -19,24 +19,14 @@
  * about the state it was in.
  */
 
+import { headingColor } from './colormap.js';
+
 /* Half-length of an agent, in box units. The Python reference calls it s. */
 const S = 0.011;
 
 /* Largest distance from an agent's centre to its outline, used to decide when
  * a shape straddles an edge and must be drawn twice. */
 const REACH = S;
-
-/* Hues per turn. Headings change every frame, so building a colour string per
- * agent per frame would allocate thousands of short-lived strings a second;
- * this table is built once and indexed by angle instead. One degree of
- * quantisation is well below what the eye resolves at this size. */
-const HUES = 360;
-
-/* HSV(h, 1, 1) of the Qt reference is exactly HSL(h, 100%, 50%). */
-const WHEEL = Array.from({ length: HUES },
-                         (_, i) => `hsl(${(i * 360) / HUES} 100% 50%)`);
-
-const TWO_PI = 2 * Math.PI;
 
 export class Renderer {
 
@@ -87,11 +77,9 @@ export class Renderer {
     for (let i = 0; i < state.n; i++) {
 
       /* Hue straight from the heading, so the colour follows the agent as it
-       * turns. The modulo brings in headings that have wandered outside
-       * [0, 2π) — nothing normalises them, since only their sine and cosine
-       * ever matter to the models. */
-      const turn = ((state.a[i] % TWO_PI) + TWO_PI) % TWO_PI;
-      const color = WHEEL[((turn / TWO_PI) * HUES) | 0] ?? WHEEL[0];
+       * turns. Shared with the 3D view, which encodes the same quantity. */
+      const heading = Math.atan2(state.dir[i * 2 + 1], state.dir[i * 2]);
+      const color = headingColor(heading);
 
       /* Stroke in the agent's own colour, in both themes. The stroke is there
        * to round the outline and thicken the shape a little, not to outline it
@@ -108,20 +96,20 @@ export class Renderer {
        * opposite one and has to be painted there too — otherwise triangles
        * get sliced at the border, which reads as a wall that does not exist.
        * A corner agent needs all four copies. */
-      const x = state.x[i];
-      const y = state.y[i];
+      const x = state.pos[i * 2];
+      const y = state.pos[i * 2 + 1];
       const dxs = x > 1 - REACH ? [0, -1] : x < REACH ? [0, 1] : [0];
       const dys = y > 1 - REACH ? [0, -1] : y < REACH ? [0, 1] : [0];
 
       for (const dx of dxs) {
         for (const dy of dys) {
-          this._triangle(x + dx, y + dy, state.a[i]);
+          this._triangle(x + dx, y + dy, heading);
         }
       }
     }
   }
 
-  /* One agent, at box coordinates (x, y) with heading a.
+  /* One agent, at box coordinates (x, y) with heading angle a.
    *
    * y is flipped on the way in: the model has y pointing up, the canvas has it
    * pointing down. Flipping here rather than in the transform keeps the shape

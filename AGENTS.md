@@ -38,10 +38,13 @@ littéralement ce qui sera déployé.
 
 ```
 index.html            le squelette du DOM ; le contenu est généré
+serve.py              serveur de développement, sans mise en cache
 css/calm.css          thèmes clair et sombre en variables CSS
 js/main.js            point d'entrée et boucle d'animation
 js/engine.js          l'état des agents et le déplacement sur le tore
-js/renderer.js        rendu Canvas 2D
+js/renderer2d.js      rendu Canvas 2D
+js/renderer3d.js      rendu WebGL (three.js)
+js/colormap.js        la couleur d'une orientation, en 2D et en 3D
 js/ui.js              construction de l'interface depuis le registre
 js/common.js          paramètres communs à tous les modèles
 js/i18n.js            chaînes bilingues de l'interface
@@ -54,6 +57,7 @@ js/models/aoki-reynolds-couzin.js   les trois zones concentriques
 js/models/peruani.js  attraction dans un cône de vision
 js/models/mips.js     particules actives répulsives
 img/                  illustrations, une paire clair/sombre par modèle
+vendor/three.min.js   three.js r160, build UMD
 tests/                les suites de tests
 ```
 
@@ -84,6 +88,40 @@ toujours, les autres s'écartent — plus prévisible qu'un curseur qui se bloqu
 sous la main. La version Qt faisait un mélange des deux (elle bloquait Rrep
 contre Ral mais poussait Ral contre Rrep) ; c'est harmonisé.
 
+### Deux dimensions, un seul moteur
+
+L'état est **générique en dimension**, et c'est ce qui a façonné le reste. Une
+orientation est un **vecteur unitaire**, plus un angle : la seule
+représentation qui vaille dans les deux dimensions — et celle que les modèles
+utilisaient déjà sans le dire, puisqu'ils accumulaient des cosinus et des sinus
+avant d'appeler `atan2`. Sommer des vecteurs unitaires puis normaliser est la
+même opération sans le détour, et c'est moins cher (`atan2` n'est pas gratuit).
+
+Positions et directions sont stockées entrelacées — x,y[,z] par agent — ce qui
+garde les coordonnées d'un agent sur la même ligne de cache et donne à three.js
+un tampon directement lisible.
+
+Ce que le passage en vectoriel a demandé, modèle par modèle : rien du tout pour
+les agents aveugles, une transposition mécanique pour cinq autres, et un vrai
+changement de méthode pour un seul. L'alignement **nématique** reposait sur le
+doublement d'angle, qui n'existe qu'en 2D ; en dimension quelconque le
+directeur est le vecteur propre principal du tenseur d'ordre Σ u⊗u, obtenu par
+itération de puissance. Le tenseur est aveugle à la distinction tête/queue
+parce que u et −u donnent le même produit extérieur — « modulo π » n'est plus
+une opération sur un nombre mais une propriété d'un tenseur.
+
+Deux points de méthode qui se paient comptant si on les oublie :
+
+- **Le bruit angulaire doit être isotrope.** Une rotation d'angle gaussien dans
+  un plan tiré au hasard contenant le cap : en 2D il n'y a qu'un plan et cela
+  redonne le `a += σ·N(0,1)` de la référence, en 3D cela explore la sphère
+  uniformément. Perturber des angles sphériques encombrerait les pôles, et une
+  nuée d'agents aveugles dériverait vers l'axe z. Un test le mesure.
+- **Il faut renormaliser.** La rotation est exacte sur le papier, mais ce sont
+  des flottants 32 bits et l'erreur s'accumule : sur quelques milliers de pas
+  la norme dérive assez pour que la vitesse change lentement. `move()` et
+  `turnTowards()` renormalisent tous deux.
+
 ### Le pas de temps
 
 La simulation avance à 25 Hz — un pas toutes les 40 ms — via un accumulateur
@@ -95,22 +133,73 @@ fois et demie plus vite sur un bon moniteur. Le temps crédité à une image est
 plafonné à 200 ms, sinon revenir sur un onglet en arrière-plan rejouerait
 d'un coup tous les pas manqués.
 
+### Les deux vues
+
+Le sélecteur `2D`/`3D` bascule **la vue et la simulation ensemble** : les
+modèles tournent dans la dimension que l'état porte, donc c'est un seul
+changement. Les agents sont redistribués au passage — une configuration 2D
+relevée en 3D tiendrait dans un plan unique, ce qui se lit comme un bug et met
+longtemps à se défaire.
+
+Il y a **deux éléments `<canvas>`**, un seul affiché à la fois : un canvas
+porte soit un contexte 2D, soit un contexte WebGL, jamais les deux. Ce n'est
+donc pas un mode sur un même élément.
+
+`vendor/three.min.js` est **embarqué, pas chargé depuis un CDN** : les tests
+tournent hors ligne et le sous-domaine déployé n'a aucune dépendance tierce à
+l'exécution. C'est la build UMD de r160, la dernière que cdnjs propose sous
+cette forme ; elle affiche un avertissement de dépréciation et fonctionne. Le
+contrôle de caméra (glisser pour tourner, molette pour zoomer) est écrit à la
+main plutôt que d'embarquer `OrbitControls`, qui est livré à part : une
+vingtaine de lignes contre un second fichier.
+
+La vue 3D tourne lentement d'elle-même jusqu'au premier glissement. Une
+projection immobile est très difficile à lire ; le mouvement fournit la
+parallaxe qui rend la profondeur intelligible.
+
+### La couleur
+
+Les deux vues encodent **la même chose, l'orientation**, sur la même base HSV.
+Une nuée polarisée vire à une seule couleur, une nuée désordonnée reste un
+confetti, et la phase nématique montre deux teintes opposées sur la roue — ce
+qui est précisément la lecture qui la rend reconnaissable.
+
+En 2D une orientation est un angle et la roue suffit. En 3D elle a deux degrés
+de liberté contre un pour la roue, donc l'élévation passe sur les deux autres
+axes de HSV, qui est lui-même un cône : cap horizontal → teinte pure, vers le
+haut → la saturation tombe vers le blanc, vers le bas → la valeur tombe vers le
+noir. Le mélange s'arrête avant le blanc et le noir purs pour qu'il reste
+toujours un peu de teinte et qu'un agent vertical ne disparaisse pas dans le
+fond de son propre thème.
+
+Ce qui est assumé : l'élévation n'est pas perceptuellement uniforme face à
+l'azimut, et les pôles écrasent la teinte — un agent qui monte tout droit est
+presque blanc quel que soit son azimut. C'est correct (l'azimut n'y est pas
+défini) mais la teinte n'y informe plus.
+
+> Une version antérieure colorait la 3D par la coordonnée z avec la colormap
+> cyclique `colorwheel` de colorcet, choisie parce que z vit sur un tore. Elle
+> a été retirée quand les deux vues ont été unifiées sur l'orientation ; la
+> table des 256 couleurs est récupérable dans l'historique git si la profondeur
+> redevient utile.
+
 ### Voisinage
 
 `Engine.py` cherche les voisins en testant toutes les paires, ce qui est en
 O(N²) : acceptable à la centaine d'agents de la version de bureau, pas au
 millier que le curseur autorise.
 
-`NeighbourGrid` dans `engine.js` découpe la boîte en cellules carrées jamais
-plus petites que le rayon d'interaction ; les voisins d'un agent sont alors
-dans les neuf cellules qui l'entourent. L'occupation est stockée en listes
+`NeighbourGrid` dans `engine.js` découpe la boîte en cellules jamais plus
+petites que le rayon d'interaction ; les voisins d'un agent sont alors dans les
+3^d cellules qui l'entourent — neuf en 2D, vingt-sept en 3D. L'occupation est stockée en listes
 chaînées sur deux tableaux d'entiers, donc un pas n'alloue rien.
 
-Deux garde-fous dans le code : le nombre de cellules par côté est plafonné à
-64 (un rayon minuscule demanderait sinon une grille de 500×500 à effacer à
-chaque pas, et il suffit que les cellules soient au moins aussi larges que le
-rayon), et en dessous de trois cellules par côté le voisinage à neuf cellules
-se replierait sur lui-même : la grille repasse alors en force brute.
+Deux garde-fous dans le code : le nombre de cellules par côté est plafonné —
+64 en 2D, 16 en 3D, soit environ quatre mille cellules dans les deux cas (un
+rayon minuscule demanderait sinon une grille énorme à effacer à chaque pas, et
+il suffit que les cellules soient au moins aussi larges que le rayon) — et en
+dessous de trois cellules par côté le voisinage se replierait sur lui-même : la
+grille repasse alors en force brute.
 
 Les tests comparent la grille à la force brute sur neuf rayons couvrant les
 deux régimes : **0 désaccord sur 180 944 relations de voisinage**. C'est la
@@ -188,9 +277,10 @@ l'essentiel étant les tests de physique qui font tourner des milliers de pas ;
 
 | Suite | `--only` | Ce qu'elle couvre |
 | --- | --- | --- |
-| `tests/unit.html` | `unit` | enroulement du tore, redimensionnement de l'état, bruit gaussien (moyenne et variance), équivalence grille / force brute, instantané des orientations, physique des quatre modèles, moyenne circulaire, contrat du registre |
+| `tests/unit.html` | `unit` | **en 2D et en 3D** : enroulement du tore, redimensionnement, bascule de dimension, `setDirection`/`turnTowards`, isotropie du bruit, équivalence grille / force brute, recherche des k plus proches contre balayage exhaustif, physique des sept modèles, les deux bases de couleur, contrat du registre |
 | `registry_suite` | `registry` | le `<select>` et le panneau **générés** : le sélecteur lu depuis le registre, la bascule entre les quatre modèles, la régénération des curseurs, les rayons emboîtés d'ARC, la mémorisation des valeurs, la traduction, et le fait que le `step` exécuté soit celui du modèle sélectionné |
-| `ui_suite` | `ui` | paramètres live, pause, brassage, thème, langue, géométrie du canvas à trois formats de fenêtre |
+| `ui_suite` | `ui` | paramètres live, pause, brassage, réinitialisation, thème, langue, géométrie du canvas à trois formats de fenêtre |
+| `view_suite` | `view` | les deux vues : exclusivité des deux canvas, chargement de three.js, vivacité du rendu 3D, chaque modèle en 3D, géométrie du canvas 3D, retour en 2D |
 
 Trois tests méritent d'être signalés parce qu'ils portent sur la physique et
 non sur le code :
@@ -242,10 +332,36 @@ navigateur l'arrondit et le modèle tourne avec une valeur que son propre
 descripteur n'a jamais déclarée. Le test a trouvé deux cas dès son écriture
 (`Rrep` à 0,025 sur un pas de 0,002, `α` à 0,393 sur un pas de 0,01).
 
+Le même piège a mordu une seconde fois, ailleurs, et mérite d'être retenu :
+**un `<input type="range">` rebase silencieusement toute valeur qu'on lui
+donne sur son propre pas**. Les rayons d'ARC n'avaient pas le même pas
+(0,001 pour `Rrep`, 0,005 pour les deux autres), donc pousser `Rrep` à 0,037
+demandait 0,037 à `Ral`, que son pas rabattait à 0,035 — sous `Rrep`, soit
+exactement ce que la contrainte existe pour empêcher. Deux corrections :
+`_applyConstraints` arrondit désormais **dans le sens de la poussée** (vers le
+haut quand il monte, vers le bas quand il descend), ce qui rend le mécanisme
+correct quels que soient les pas, et les trois rayons partagent maintenant le
+même pas.
+
+Ce bug est passé sous les tests parce qu'ils utilisaient tous des valeurs
+tombant sur les crans de tous les curseurs. Le test qui l'attrape balaie chaque
+curseur sur des valeurs volontairement biscornues et vérifie l'invariant après
+chaque mouvement — et il a été validé par mutation : en rétablissant l'arrondi
+au plus proche, il échoue sur `rrep=0.037 -> [0.037, 0.035, 0.45]`, le cas
+observé.
+
 Un détail de mise en œuvre : les tests ne peuvent pas capturer une erreur de
 module après coup. `run.py` écrit donc une copie jetable de `index.html`
 portant un capteur d'erreurs (`index_test.html`), supprimée en fin de course :
 la page livrée reste propre.
+
+**Le serveur de développement `serve.py` n'envoie aucun en-tête de cache**, et
+ce n'est pas cosmétique : l'application est faite de modules ES, que les
+navigateurs mettent en cache durement, et `python3 -m http.server` répond 304
+sur un horodatage. Après avoir édité trois modules on peut se retrouver à
+exécuter un mélange d'ancien et de neuf — une interface dont le comportement ne
+correspond à aucune version du code sur le disque. Cela ressemble exactement à
+un bug.
 
 Lancer la suite exige selenium et geckodriver. Sur cette machine, selenium est
 dans l'environnement du site du LJP, et geckodriver dans `/snap/bin` :

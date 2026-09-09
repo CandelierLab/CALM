@@ -58,25 +58,26 @@ export default {
   ],
 
   step(state, p) {
-    const heading = state.freezeHeadings();
+    const dim = state.dim;
+    const heading = state.freezeDirections();
     const k = Math.round(p.k);
 
     neighbours.build(state, k);
 
+    const sum = new Float32Array(dim);
+
     for (let i = 0; i < state.n; i++) {
       /* The agent counts itself in, as in Vicsek: without it a lone pair would
        * just swap headings for ever. */
-      let sx = Math.cos(heading[i]);
-      let sy = Math.sin(heading[i]);
+      for (let c = 0; c < dim; c++) sum[c] = heading[i * dim + c];
 
       const found = neighbours.find(state, i, k);
       for (let m = 0; m < found; m++) {
         const j = neighbours.index[m];
-        sx += Math.cos(heading[j]);
-        sy += Math.sin(heading[j]);
+        for (let c = 0; c < dim; c++) sum[c] += heading[j * dim + c];
       }
 
-      state.a[i] = Math.atan2(sy, sx);
+      state.setDirection(i, sum);
     }
 
     state.move(p.speed, p.noise);

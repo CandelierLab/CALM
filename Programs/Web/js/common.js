@@ -24,7 +24,7 @@ export const COMMON_PARAMS = [
      * small radius the same 1000 agents cost a fraction of that. */
     key: 'count',
     label: { fr: 'Nombre d’agents', en: 'Number of agents' },
-    min: 1, max: 1000, step: 1, value: 100, decimals: 0,
+    min: 1, max: 1000, step: 1, value: 500, decimals: 0,
   },
 
   {

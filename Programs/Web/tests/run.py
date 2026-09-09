@@ -3,12 +3,15 @@
 
 Two suites, both in a real browser, because that is where the code runs:
 
-  * tests/unit.html  — the modules: torus wrapping, resizing, noise, the blind
-                       model's null behaviour, the renderer's edge duplication,
-                       and the registry contract every future model must meet.
+  * tests/unit.html  — the modules, in both dimensions: torus wrapping,
+                       resizing, noise isotropy, the neighbour grid and the
+                       k-nearest search against brute force, the physics of
+                       every model, the colour maps, and the registry contract
+                       every future model must meet.
   * this file         — the interface: the selector and the panel generated
                        from the registry, live parameters, pause, shuffle,
-                       theme, language, and the canvas geometry.
+                       theme, language, canvas geometry, and the 2D/3D views
+                       with the 3D colour modes.
 
 Usage:
 
@@ -531,6 +534,35 @@ def registry_suite(driver, base, r):
                ".map(o => o.textContent)")[:3] == ["0.010", "0.010", "0.450"],
             str(js("return [...document.querySelectorAll('#model-params output')].map(o => o.textContent)")))
 
+    # Sweep, rather than a handful of chosen values.
+    #
+    # The chosen-value tests above all used numbers that happened to sit on
+    # every slider's step, and so missed a real bug: the radii had different
+    # steps, a correction of 0.037 was rebased to 0.035 by the target slider,
+    # and the ordering broke. Arbitrary values are what catch that, so this
+    # walks each slider through a list of awkward ones and checks the
+    # invariant after every single move.
+    awkward = [0.037, 0.083, 0.019, 0.062, 0.007, 0.098, 0.041, 0.003, 0.077]
+    violations = []
+
+    for key in ("rrep", "ral", "ratt"):
+        for value in awkward:
+            slide(key, value)
+            time.sleep(0.06)
+            current = radii()
+            if not ordered(current):
+                violations.append(f"{key}={value} -> {current}")
+
+    r.check("[registry] the radii stay ordered through an arbitrary sweep",
+            not violations, "; ".join(violations[:4]))
+
+    # And the values in use must be the ones the sliders show, not something
+    # the browser quietly rebased underneath them.
+    shown = js("return [...document.querySelectorAll('#model-params output')]"
+               ".map(o => o.textContent)")
+    r.check("[registry] the readouts match the sliders",
+            [float(v) for v in shown[:3]] == radii(), f"{shown[:3]} vs {radii()}")
+
     driver.find_element(By.ID, "reset").click()
     time.sleep(0.4)
     r.check("[registry] reset restores ordered radii",
@@ -550,11 +582,116 @@ def registry_suite(driver, base, r):
             "; ".join(js("return window.__errors || []")))
 
 
+def view_suite(driver, base, r):
+    """The 2D and 3D views: exclusive, both live, and the 3D colour modes.
+
+    A canvas holds either a 2D context or a WebGL one, so the two views are
+    separate elements and exactly one must be shown at a time.
+    """
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import Select
+
+    driver.get(f"{base}/index_test.html")
+    time.sleep(2.0)
+
+    js = driver.execute_script
+    errors = lambda: js("return window.__errors || []")
+    snap = lambda which: js(f"return document.getElementById('{which}').toDataURL()")
+    dim_button = lambda label: js(
+        f"[...document.querySelectorAll('#dims button')]"
+        f".find(b => b.textContent === '{label}').click()")
+
+    hidden = lambda: js("return [document.getElementById('view').hidden,"
+                        " document.getElementById('view3d').hidden]")
+
+    r.check("[view] three.js is loaded", js("return typeof THREE !== 'undefined'"),
+            js("return typeof THREE !== 'undefined' ? THREE.REVISION : 'absent'"))
+    r.check("[view] both view buttons offered",
+            js("return [...document.querySelectorAll('#dims button')].map(b => b.textContent)")
+            == ["2D", "3D"])
+    r.check("[view] 2D is the default and is the one shown",
+            hidden() == [False, True], str(hidden()))
+    # ─── into 3D
+    dim_button("3D")
+    time.sleep(2.0)
+
+    r.check("[view] switching to 3D shows only the 3D canvas",
+            hidden() == [True, False], str(hidden()))
+    r.check("[view] no JS error entering 3D", not errors(), "; ".join(errors()))
+    r.check("[view] the state became three-dimensional",
+            js("return document.getElementById('view3d').width") > 100,
+            js("return document.getElementById('view3d').width"))
+
+    first = snap("view3d")
+    r.check("[view] the 3D view renders something", len(first) > 5000, len(first))
+    time.sleep(0.8)
+    r.check("[view] the 3D view is live", first != snap("view3d"))
+
+    # Freeze the simulation, and the spin with it, and the frame must stop
+    # changing: the colour is a function of the state, not of the clock.
+    for key, value in [("speed", 0), ("noise", 0)]:
+        js(f"""
+          const s = document.getElementById('param-{key}');
+          s.value = {value}; s.dispatchEvent(new Event('input', {{bubbles: true}}));
+        """)
+    js("return null")
+    time.sleep(1.2)
+
+    # ─── every model runs in the 3D view
+    registry = driver.execute_async_script("""
+      const done = arguments[0];
+      import('./js/models/index.js').then(m => done(m.models.map(x => x.id)));
+    """)
+    for model_id in registry:
+        Select(driver.find_element(By.ID, "model-select")).select_by_value(model_id)
+        time.sleep(0.8)
+        r.check(f"[view] {model_id} runs in 3D", not errors(), "; ".join(errors()))
+
+    # ─── the 3D canvas is square and fits, at two window shapes
+    for width, height in [(1400, 900), (800, 1100)]:
+        driver.set_window_size(width, height)
+        time.sleep(0.8)
+        box = js("""
+          const c = document.getElementById('view3d');
+          const b = c.getBoundingClientRect();
+          return [b.width, b.height, b.top, b.left, innerWidth, innerHeight];
+        """)
+        bw, bh, top, left, vw, vh = box
+        r.check(f"[view] 3D canvas square at {width}x{height}", abs(bw - bh) < 1.5,
+                f"{bw:.0f}x{bh:.0f}")
+        r.check(f"[view] 3D canvas fits the viewport at {width}x{height}",
+                top >= -1 and left >= -1 and bw <= vw + 1 and bh <= vh + 1,
+                f"top {top:.0f}, left {left:.0f}, {bw:.0f}x{bh:.0f} in {vw}x{vh}")
+
+    driver.set_window_size(1400, 900)
+    time.sleep(0.6)
+
+    # ─── back to 2D
+    dim_button("2D")
+    time.sleep(1.5)
+
+    r.check("[view] switching back shows only the 2D canvas",
+            hidden() == [False, True], str(hidden()))
+    # Speed and noise were zeroed above to isolate the colour change; the
+    # liveness check below needs them back.
+    for key, value in [("speed", 0.006), ("noise", 0.1)]:
+        js(f"""
+          const s = document.getElementById('param-{key}');
+          s.value = {value}; s.dispatchEvent(new Event('input', {{bubbles: true}}));
+        """)
+    time.sleep(0.6)
+
+    back = snap("view")
+    time.sleep(0.8)
+    r.check("[view] the 2D view is live again", back != snap("view"))
+    r.check("[view] no JS error over the suite", not errors(), "; ".join(errors()))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--headed", action="store_true", help="show the browser")
     parser.add_argument("--shots", metavar="DIR", help="write screenshots there")
-    parser.add_argument("--only", choices=["unit", "ui", "registry"],
+    parser.add_argument("--only", choices=["unit", "ui", "registry", "view"],
                         help="run one suite")
     args = parser.parse_args()
 
@@ -578,6 +715,8 @@ def main():
             ui_suite(driver, base, results, args.shots)
         if args.only in (None, "registry"):
             registry_suite(driver, base, results)
+        if args.only in (None, "view"):
+            view_suite(driver, base, results)
     finally:
         if driver is not None:
             try:

@@ -65,14 +65,18 @@ export default {
 
   illustration: 'Aoki-Reynolds-Couzin',
 
+  /* The three radii share a step, and deliberately so. The interface rounds a
+   * correction away from the value it is protecting, so mixed steps are safe
+   * — but a shared step means no rounding is needed at all, and the group
+   * behaves exactly as the constraint says. */
   params: [
     /* Rrep stops at 0.1: past that the repulsion zone swallows the two
      * others, every neighbour crowds every other, and the mean bearing of a
      * dozen neighbours spread all round points nowhere in particular — the
      * rule stops being avoidance and becomes noise. */
     { key: 'rrep', label: '<i>R</i><sub>rep</sub>', min: 0, max: 0.1, step: 0.001, value: 0.025, decimals: 3 },
-    { key: 'ral', label: '<i>R</i><sub>al</sub>', min: 0, max: 0.5, step: 0.005, value: 0.125, decimals: 3 },
-    { key: 'ratt', label: '<i>R</i><sub>att</sub>', min: 0, max: 0.5, step: 0.005, value: 0.25, decimals: 3 },
+    { key: 'ral', label: '<i>R</i><sub>al</sub>', min: 0, max: 0.5, step: 0.001, value: 0.125, decimals: 3 },
+    { key: 'ratt', label: '<i>R</i><sub>att</sub>', min: 0, max: 0.5, step: 0.001, value: 0.25, decimals: 3 },
     /* 0.39 rather than the reference's π/8 = 0.3927: the default has to sit
      * on a step of the slider, and it is displayed to two decimals anyway. */
     { key: 'alpha', label: '<i>α</i>', min: 0, max: Math.PI / 2, step: 0.01, value: 0.39, decimals: 2 },
@@ -111,7 +115,8 @@ export default {
   },
 
   step(state, p) {
-    const heading = state.freezeHeadings();
+    const dim = state.dim;
+    const heading = state.freezeDirections();
 
     /* constrain() keeps the sliders ordered, but step() is also called
      * directly — by the tests, and by anything else that drives the model
@@ -123,68 +128,98 @@ export default {
 
     grid.build(state, ratt);
 
+    /* Blind sector: a neighbour is unseen when the angle between the
+     * direction towards it and the *backwards* heading is less than α. In
+     * cosines, that is -(ê·u) > cos α, which needs no trigonometry per
+     * neighbour. In three dimensions the sector becomes a cone, which is the
+     * natural reading of the same rule. */
+    const cosAlpha = Math.cos(p.alpha);
+
+    const repulsion = new Float32Array(dim);
+    const alignment = new Float32Array(dim);
+    const attraction = new Float32Array(dim);
+    const target = new Float32Array(dim);
+
     for (let i = 0; i < state.n; i++) {
-      const ai = heading[i];
+      const base = i * dim;
 
-      /* Circular sums per zone. Repulsion and attraction accumulate the
-       * *directions to* neighbours; alignment accumulates their headings. */
-      let repX = 0, repY = 0, nRep = 0;
-      let alX = 0, alY = 0, nAl = 0;
-      let attX = 0, attY = 0, nAtt = 0;
+      repulsion.fill(0);
+      alignment.fill(0);
+      attraction.fill(0);
+      let nRep = 0;
+      let nAl = 0;
+      let nAtt = 0;
 
-      grid.each(state, i, ratt, (j, dx, dy) => {
-        if (j === i) return;
+      grid.each(state, i, ratt, (j, delta, dist2) => {
+        if (j === i || dist2 === 0) return;
 
-        const rho = Math.hypot(dx, dy);
-        if (rho === 0) return;              // coincident agents have no direction
+        const rho = Math.sqrt(dist2);
 
-        /* Bearing to the neighbour, in the agent's own frame: this is what
-         * makes the blind sector and the zone rules independent of where the
-         * agent happens to be heading. */
-        let theta = Math.atan2(dy, dx) - ai;
-        theta = ((theta % TWO_PI) + TWO_PI) % TWO_PI;
+        let along = 0;
+        for (let k = 0; k < dim; k++) along += delta[k] * heading[base + k];
+        along /= rho;
 
-        /* Blind sector, centred behind the agent (θ = π). */
-        if (theta >= Math.PI - p.alpha && theta <= Math.PI + p.alpha) return;
+        if (-along > cosAlpha) return;          // in the blind sector
 
         if (rho <= rrep) {
-          repX += Math.cos(theta); repY += Math.sin(theta); nRep++;
+          /* Direction towards the neighbour; the flight direction is its
+           * negation, taken once the sum is complete. */
+          for (let k = 0; k < dim; k++) repulsion[k] += delta[k] / rho;
+          nRep++;
         } else if (rho <= ral) {
-          alX += Math.cos(heading[j]); alY += Math.sin(heading[j]); nAl++;
+          const o = j * dim;
+          for (let k = 0; k < dim; k++) alignment[k] += heading[o + k];
+          nAl++;
         } else {
-          attX += Math.cos(theta); attY += Math.sin(theta); nAtt++;
+          for (let k = 0; k < dim; k++) attraction[k] += delta[k] / rho;
+          nAtt++;
         }
       });
 
-      let da = 0;
+      let wanted = false;
 
       if (nRep > 0) {
-        /* Away from the mean bearing of the crowding neighbours. */
-        da = Math.atan2(-repY, -repX);
+        /* Away from the mean direction of the crowding neighbours. Repulsion
+         * has absolute priority: an agent about to collide does nothing but
+         * avoid. */
+        for (let k = 0; k < dim; k++) target[k] = -repulsion[k];
+        wanted = true;
 
       } else if (nAl > 0 && nAtt > 0) {
-        /* Both zones occupied: average the two desired turns, again the
-         * circular way.
+        /* Both zones occupied: average the two desired directions, each
+         * normalised first so that neither wins on neighbour count alone.
          *
          * The reference writes this branch as `if Nal & Natt`, a bitwise and
          * on two counts — which is false for, say, one aligning and two
-         * attracting neighbours (1 & 2 == 0) and silently drops the attraction.
-         * Read as the intended logical and here. */
-        const dAl = wrap(Math.atan2(alY, alX) - ai);
-        const dAtt = Math.atan2(attY, attX);
-        da = Math.atan2(Math.sin(dAl) + Math.sin(dAtt),
-                        Math.cos(dAl) + Math.cos(dAtt));
+         * attracting neighbours (1 & 2 == 0) and silently drops the
+         * attraction. Read as the intended logical and here. */
+        let alNorm = 0;
+        let attNorm = 0;
+        for (let k = 0; k < dim; k++) {
+          alNorm += alignment[k] * alignment[k];
+          attNorm += attraction[k] * attraction[k];
+        }
+        alNorm = alNorm > 1e-20 ? 1 / Math.sqrt(alNorm) : 0;
+        attNorm = attNorm > 1e-20 ? 1 / Math.sqrt(attNorm) : 0;
+
+        for (let k = 0; k < dim; k++) {
+          target[k] = alignment[k] * alNorm + attraction[k] * attNorm;
+        }
+        wanted = true;
 
       } else if (nAl > 0) {
-        da = wrap(Math.atan2(alY, alX) - ai);
+        for (let k = 0; k < dim; k++) target[k] = alignment[k];
+        wanted = true;
 
       } else if (nAtt > 0) {
-        da = Math.atan2(attY, attX);
+        for (let k = 0; k < dim; k++) target[k] = attraction[k];
+        wanted = true;
       }
 
-      if (Math.abs(da) > DA_MAX) da = DA_MAX * Math.sign(da);
-
-      state.a[i] = ai + da;
+      /* Turn towards the target, by at most Δα_max. The cap is what produces
+       * the milling torus, so it is not a numerical safeguard but part of the
+       * model. */
+      if (wanted) state.turnTowards(i, target, DA_MAX);
     }
 
     state.move(p.speed, p.noise);

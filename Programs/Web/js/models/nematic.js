@@ -58,34 +58,81 @@ export default {
   ],
 
   step(state, p) {
-    const heading = state.freezeHeadings();
+    const dim = state.dim;
+    const heading = state.freezeDirections();
 
     grid.build(state, p.r);
 
-    for (let i = 0; i < state.n; i++) {
-      /* Doubling the angles is what makes the average blind to head-versus-
-       * tail: θ and θ+π both map to 2θ. Summing those unit vectors and halving
-       * the argument gives the local director — the axis the neighbourhood
-       * lies along. */
-      let sx = 0;
-      let sy = 0;
+    /* Order tensor Q = Σ u⊗u over the neighbourhood, and scratch for the
+     * power iteration below. Allocated once for the whole step. */
+    const Q = new Float32Array(dim * dim);
+    const v = new Float32Array(dim);
+    const w = new Float32Array(dim);
 
+    for (let i = 0; i < state.n; i++) {
+      /* Σ u⊗u is blind to which end of the axis an agent points, since u and
+       * -u give the same outer product. That is the whole trick, and unlike
+       * the doubled-angle formula it works in three dimensions too: there,
+       * "modulo π" is not an operation on a number, it is a statement about a
+       * tensor.
+       *
+       * In two dimensions this is exactly equivalent to summing e^{2iθ} and
+       * halving the argument. */
+      Q.fill(0);
       grid.each(state, i, p.r, (j) => {
-        sx += Math.cos(2 * heading[j]);
-        sy += Math.sin(2 * heading[j]);
+        const o = j * dim;
+        for (let a = 0; a < dim; a++) {
+          const ua = heading[o + a];
+          for (let b = a; b < dim; b++) Q[a * dim + b] += ua * heading[o + b];
+        }
       });
 
-      const director = 0.5 * Math.atan2(sy, sx);
+      /* Q is symmetric and only its upper triangle was filled. */
+      for (let a = 0; a < dim; a++) {
+        for (let b = 0; b < a; b++) Q[a * dim + b] = Q[b * dim + a];
+      }
 
-      /* The director is an axis, so it names two headings, π apart. The agent
-       * keeps travelling the way it was already going and takes whichever of
-       * the two is nearer — otherwise every agent whose heading happens to sit
-       * on the far side would spin round, and the lanes would never form. */
-      const along = Math.cos(director - heading[i]) >= 0
-        ? director
-        : director + Math.PI;
+      /* Principal eigenvector of Q by power iteration — the local director,
+       * the axis the neighbourhood lies along.
+       *
+       * Started from the agent's own heading, which does double duty: it is a
+       * good initial guess, and it settles the sign for free. The director is
+       * an axis, so it names two headings π apart, and the iteration converges
+       * to whichever end it started nearest — which is the one the agent was
+       * already travelling towards. Without that, every agent on the far side
+       * would spin round and the lanes would never form.
+       *
+       * Twelve iterations: the ratio of the two leading eigenvalues sets the
+       * rate, and convergence is slow only when the neighbourhood is nearly
+       * isotropic — where the director is meaningless anyway and any answer
+       * will do. */
+      for (let c = 0; c < dim; c++) v[c] = heading[i * dim + c];
 
-      state.a[i] = along;
+      for (let iteration = 0; iteration < 12; iteration++) {
+        let norm2 = 0;
+        for (let a = 0; a < dim; a++) {
+          let acc = 0;
+          for (let b = 0; b < dim; b++) acc += Q[a * dim + b] * v[b];
+          w[a] = acc;
+          norm2 += acc * acc;
+        }
+
+        /* Q annihilated the vector: the neighbourhood carries no axis. Keep
+         * what we had. */
+        if (norm2 < 1e-20) break;
+
+        const inv = 1 / Math.sqrt(norm2);
+        for (let a = 0; a < dim; a++) v[a] = w[a] * inv;
+      }
+
+      /* The iteration can converge to either end of the axis; take the end on
+       * the same side as the current heading so the agent keeps going the way
+       * it was going. */
+      let dot = 0;
+      for (let c = 0; c < dim; c++) dot += v[c] * heading[i * dim + c];
+      if (dot < 0) for (let c = 0; c < dim; c++) v[c] = -v[c];
+
+      state.setDirection(i, v);
     }
 
     state.move(p.speed, p.noise);

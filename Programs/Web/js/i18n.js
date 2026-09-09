@@ -21,6 +21,7 @@ export const strings = {
     general: 'Paramètres généraux',
     noParameters: 'Ce modèle n’a pas de paramètre propre.',
     theme: 'Basculer le thème clair / sombre',
+    dimensions: 'Choisir la vue en deux ou trois dimensions',
     themeLabel: 'Thème',
   },
 
@@ -35,6 +36,7 @@ export const strings = {
     general: 'General parameters',
     noParameters: 'This model has no parameter of its own.',
     theme: 'Toggle light / dark theme',
+    dimensions: 'Choose the two- or three-dimensional view',
     themeLabel: 'Theme',
   },
 };

@@ -60,27 +60,31 @@ export default {
    * not a special case to guard.
    */
   step(state, p) {
+    const dim = state.dim;
+
     /* Every agent aligns on the configuration as it was at the start of the
      * step, not on the partially updated one. */
-    const heading = state.freezeHeadings();
+    const heading = state.freezeDirections();
 
     grid.build(state, p.r);
 
-    for (let i = 0; i < state.n; i++) {
-      let sx = 0;
-      let sy = 0;
+    /* One scratch vector for the whole step. */
+    const sum = new Float32Array(dim);
 
-      /* Circular mean: sum the unit vectors, then take the argument. Averaging
-       * the angles themselves would be wrong — 359° and 1° average to 180°,
-       * the exact opposite of the right answer. */
+    for (let i = 0; i < state.n; i++) {
+      /* Mean direction: sum the unit vectors, then normalise. Averaging
+       * angles instead would be wrong — 359° and 1° average to 180°, the
+       * exact opposite of the right answer — and in three dimensions there is
+       * no angle to average in the first place. The agent counts itself in,
+       * as in the reference. */
+      sum.fill(0);
       grid.each(state, i, p.r, (j) => {
-        sx += Math.cos(heading[j]);
-        sy += Math.sin(heading[j]);
+        for (let k = 0; k < dim; k++) sum[k] += heading[j * dim + k];
       });
 
-      /* atan2(0, 0) is 0, which is what np.angle(0) returns in the reference,
-       * so perfectly cancelling neighbours behave identically. */
-      state.a[i] = Math.atan2(sy, sx);
+      /* Perfectly cancelling neighbours leave the heading untouched, which is
+       * setDirection's contract. */
+      state.setDirection(i, sum);
     }
 
     state.move(p.speed, p.noise);

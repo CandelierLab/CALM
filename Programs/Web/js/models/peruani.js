@@ -77,51 +77,67 @@ export default {
   /* One simulation step.
    *
    * At β = 0 the cone is empty and the agents fall back to blind random walks;
-   * at β = π it is the whole disc and the interaction becomes reciprocal
+   * at β = π it is the whole ball and the interaction becomes reciprocal
    * again. Both are correct limits of the formula rather than special cases.
    */
   step(state, p) {
-    const heading = state.freezeHeadings();
+    const dim = state.dim;
+    const heading = state.freezeDirections();
 
     grid.build(state, p.R);
 
-    /* The cone test compares cosines rather than angles: one cos() per agent
-     * instead of an atan2 and a wrap per neighbour. */
+    /* The cone test compares cosines rather than angles: one cos() per step
+     * instead of an acos per neighbour. */
     const cosBeta = Math.cos(p.beta);
 
-    for (let i = 0; i < state.n; i++) {
-      const ai = heading[i];
-      const ux = Math.cos(ai);
-      const uy = Math.sin(ai);
+    const torque = new Float32Array(dim);
+    const target = new Float32Array(dim);
 
-      let torque = 0;
+    for (let i = 0; i < state.n; i++) {
+      const base = i * dim;
+
+      torque.fill(0);
       let seen = 0;
 
-      grid.each(state, i, p.R, (j, dx, dy) => {
-        if (j === i) return;
+      grid.each(state, i, p.R, (j, delta, dist2) => {
+        if (j === i || dist2 === 0) return;
 
-        const rho = Math.hypot(dx, dy);
-        if (rho === 0) return;
+        const rho = Math.sqrt(dist2);
 
         /* Inside the cone: the unit vector towards j, projected on the
          * heading, must exceed cos β. */
-        if ((dx * ux + dy * uy) / rho <= cosBeta) return;
+        let along = 0;
+        for (let k = 0; k < dim; k++) along += delta[k] * heading[base + k];
+        along /= rho;
+        if (along <= cosBeta) return;
 
-        /* sin(αᵢⱼ - θᵢ) is the signed torque turning i towards j, and the
-         * cross product gives it without ever forming either angle:
-         *
-         *   sin(α - θ) = sin α cos θ - cos α sin θ
-         *              = (dy·ux - dx·uy) / ρ
-         *
-         * Positive when j lies to the left of i's heading, which turns i that
-         * way — attraction, as intended. */
-        torque += (dy * ux - dx * uy) / rho;
+        /* The vector form of sin(αᵢⱼ - θᵢ): take the unit vector towards the
+         * neighbour and remove its component along the heading. What is left
+         * has length sin of the angle between them and points the way the
+         * agent must turn — the same quantity as the scalar formula, without
+         * ever forming an angle, and defined in any dimension. */
+        for (let k = 0; k < dim; k++) {
+          torque[k] += delta[k] / rho - along * heading[base + k];
+        }
         seen++;
       });
 
+      if (seen === 0) continue;
+
       /* Normalised by the number seen, per the paper: an agent in a crowd
-       * turns no harder than one with a single neighbour in view. */
-      state.a[i] = seen > 0 ? ai + (p.gamma * torque) / seen : ai;
+       * turns no harder than one with a single neighbour in view.
+       *
+       * Adding the torque to the heading and renormalising is a rotation of
+       * atan(|γ·torque/n|) rather than exactly γ·torque/n. The two agree to
+       * first order, and where they differ the rotation is the better
+       * behaved: the turn can never overshoot past the target, which an
+       * unbounded angular step can. */
+      const gain = p.gamma / seen;
+      for (let k = 0; k < dim; k++) {
+        target[k] = heading[base + k] + gain * torque[k];
+      }
+
+      state.setDirection(i, target);
     }
 
     state.move(p.speed, p.noise);

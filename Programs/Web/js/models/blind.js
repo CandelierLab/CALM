@@ -33,7 +33,9 @@ export default {
   params: [],
 
   /* One simulation step. Blind agents have no reorientation term, so the step
-   * is the common move alone: angular noise, then advection on the torus. */
+   * is the common move alone: angular noise, then advection on the torus.
+   *
+   * Dimension-agnostic without trying to be: it never looks at a coordinate. */
   step(state, p) {
     state.move(p.speed, p.noise);
   },

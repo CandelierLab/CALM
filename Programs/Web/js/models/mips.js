@@ -33,12 +33,11 @@ import { NeighbourGrid } from '../engine.js';
 
 const grid = new NeighbourGrid();
 
-/* Force accumulators, reused between steps. Unlike the steering models, this
- * one has to hold a displacement per agent before applying any of it: forces
- * are computed on the configuration at the start of the step, all of them,
- * and only then applied. */
-let fx = new Float32Array(0);
-let fy = new Float32Array(0);
+/* Force accumulator, reused between steps and interleaved like the positions.
+ * Unlike the steering models, this one has to hold a displacement per agent
+ * before applying any of it: forces are computed on the configuration at the
+ * start of the step, all of them, and only then applied. */
+let force = new Float32Array(0);
 
 export default {
 
@@ -88,14 +87,12 @@ export default {
   ],
 
   step(state, p) {
+    const dim = state.dim;
     const n = state.n;
+    const total = n * dim;
 
-    if (fx.length < n) {
-      fx = new Float32Array(n);
-      fy = new Float32Array(n);
-    }
-    fx.fill(0, 0, n);
-    fy.fill(0, 0, n);
+    if (force.length < total) force = new Float32Array(total);
+    force.fill(0, 0, total);
 
     grid.build(state, p.sigma);
 
@@ -108,18 +105,19 @@ export default {
      * next to σ for the integration to hold, so it is the one worth putting
      * under the visitor's hand. */
     for (let i = 0; i < n; i++) {
-      grid.each(state, i, p.sigma, (j, dx, dy) => {
-        if (j === i) return;
+      const base = i * dim;
 
-        const rho = Math.hypot(dx, dy);
-        if (rho === 0) return;
+      grid.each(state, i, p.sigma, (j, delta, dist2) => {
+        if (j === i || dist2 === 0) return;
 
-        /* dx, dy point from i to j, so pushing i away from j is the opposite
+        const rho = Math.sqrt(dist2);
+        const overlap = 1 - rho / p.sigma;
+        const scale = (p.push * overlap) / rho;
+
+        /* delta points from i to j, so pushing i away from j is the opposite
          * direction. Each pair is visited from both ends, which is what makes
          * the repulsion reciprocal — the contrast with Peruani's cone. */
-        const overlap = 1 - rho / p.sigma;
-        fx[i] -= (p.push * overlap * dx) / rho;
-        fy[i] -= (p.push * overlap * dy) / rho;
+        for (let k = 0; k < dim; k++) force[base + k] -= scale * delta[k];
       });
     }
 
@@ -130,16 +128,21 @@ export default {
      * separate. */
     const limit = p.sigma / 2;
     for (let i = 0; i < n; i++) {
-      const magnitude = Math.hypot(fx[i], fy[i]);
+      const base = i * dim;
+
+      let magnitude = 0;
+      for (let k = 0; k < dim; k++) magnitude += force[base + k] ** 2;
+      magnitude = Math.sqrt(magnitude);
+
       if (magnitude > limit) {
-        fx[i] = (fx[i] / magnitude) * limit;
-        fy[i] = (fy[i] / magnitude) * limit;
+        const scale = limit / magnitude;
+        for (let k = 0; k < dim; k++) force[base + k] *= scale;
       }
     }
 
     /* Orientations get noise and nothing else — the whole point — then the
      * repulsion is applied on top of the self-propelled step. */
     state.move(p.speed, p.noise);
-    state.displace(fx, fy);
+    state.displace(force);
   },
 };

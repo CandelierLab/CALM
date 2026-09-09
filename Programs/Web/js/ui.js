@@ -13,13 +13,18 @@ import { LANGUAGES, label, t, preferredLanguage } from './i18n.js';
 
 export class UI {
 
-  /* handlers: { onParam(key, value), onShuffle(), onModel(model) } */
+  /* handlers: { onParam(key, value), onShuffle(), onModel(model), onDim(dim) } */
   constructor(handlers) {
     this.handlers = handlers;
 
     this.lang = preferredLanguage();
     this.dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     this.running = true;
+
+    /* Two or three dimensions — one or the other, never both. The 2D view is
+     * the default: it is the more legible of the two, and every model was
+     * built and validated against it. */
+    this.dim = 2;
 
     /* Current parameter values, common ones and the selected model's own,
      * flattened: this is what gets handed to model.step(). */
@@ -32,6 +37,7 @@ export class UI {
     this.el = {
       subtitle: document.getElementById('subtitle'),
       langs: document.getElementById('langs'),
+      dims: document.getElementById('dims'),
       theme: document.getElementById('theme'),
       shuffle: document.getElementById('shuffle'),
       play: document.getElementById('play'),
@@ -53,6 +59,7 @@ export class UI {
     this._buildParams(COMMON_PARAMS, this.el.general);
     this._selectModel(this.model, { silent: true });
     this._applyTheme();
+    this._applyDim();
     this._applyLanguage();
   }
 
@@ -83,6 +90,40 @@ export class UI {
       });
       this.el.langs.append(button);
     }
+
+    /* Two exclusive buttons rather than one toggle: a single button showing
+     * "3D" is ambiguous about whether that is the current view or the one it
+     * would switch to. These read the same way as the language pair. */
+    for (const dim of [2, 3]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = `${dim}D`;
+      button.dataset.dim = String(dim);
+      button.addEventListener('click', () => this.setDim(dim));
+      this.el.dims.append(button);
+    }
+
+  }
+
+
+
+  /* Switch the view. Idempotent, so clicking the active button does nothing.
+   *
+   * The dimension is not a parameter of a model — every model runs in both —
+   * so it does not live in `values` and does not belong to the registry. */
+  setDim(dim) {
+    if (dim === this.dim) return;
+
+    this.dim = dim;
+    this._applyDim();
+    this.handlers.onDim(dim);
+  }
+
+  _applyDim() {
+    for (const button of this.el.dims.children) {
+      button.classList.toggle('active', button.dataset.dim === String(this.dim));
+    }
+    this.el.dims.title = t('dimensions', this.lang);
   }
 
   _buildSelect() {
@@ -215,17 +256,35 @@ export class UI {
     const fixes = this.model.constrain(this.values, changed) ?? {};
     const descriptors = [...COMMON_PARAMS, ...this.model.params];
 
-    for (const [key, value] of Object.entries(fixes)) {
-      if (this.values[key] === value) continue;
+    for (const [key, wanted] of Object.entries(fixes)) {
+      const descriptor = descriptors.find((d) => d.key === key);
+      const slider = document.getElementById(`param-${key}`);
+      if (!descriptor || !slider) continue;
+
+      /* Snap the correction onto the target slider's own step, rounding *away*
+       * from the value being corrected.
+       *
+       * This is not a nicety. A range input silently rebases whatever it is
+       * given onto its own step, and the sliders in a constrained group need
+       * not share one: pushing Rrep to 0.037 asked Ral for 0.037, which a step
+       * of 0.005 rebased to 0.035 — back under Rrep, the very thing the
+       * constraint exists to prevent. Rounding up when raising and down when
+       * lowering keeps the relation true whatever the steps are. */
+      const raising = wanted > this.values[key];
+      const steps = (wanted - descriptor.min) / descriptor.step;
+      const snapped = raising ? Math.ceil(steps - 1e-9) : Math.floor(steps + 1e-9);
+
+      const value = Math.max(descriptor.min,
+                             Math.min(descriptor.max,
+                                      descriptor.min + snapped * descriptor.step));
+
+      if (value === this.values[key]) continue;
 
       this.values[key] = value;
+      slider.value = value;
 
-      const slider = document.getElementById(`param-${key}`);
-      if (slider) slider.value = value;
-
-      const descriptor = descriptors.find((d) => d.key === key);
       const readout = document.querySelector(`output[for="param-${key}"]`);
-      if (readout && descriptor) readout.textContent = value.toFixed(descriptor.decimals);
+      if (readout) readout.textContent = value.toFixed(descriptor.decimals);
 
       this.handlers.onParam(key, value);
     }
@@ -256,6 +315,7 @@ export class UI {
     this.el.modelLabel.textContent = t('model', this.lang);
     this.el.paramsTitle.textContent = t('parameters', this.lang);
     this.el.theme.title = t('theme', this.lang);
+    this.el.dims.title = t('dimensions', this.lang);
 
     for (const [index, model] of models.entries()) {
       this.el.select.options[index].textContent = label(model.name, this.lang);

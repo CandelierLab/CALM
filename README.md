@@ -25,11 +25,16 @@ tels quels par le navigateur. Il faut simplement un serveur HTTP, parce que les
 modules ES ne se chargent pas depuis `file://`.
 
 ```bash
-cd Programs/Web
-python3 -m http.server 8000
+Programs/Web/serve.py
 ```
 
-Puis <http://127.0.0.1:8000/>. Toute modification est visible au rechargement.
+Puis <http://127.0.0.1:8000/> (`serve.py 8080` pour un autre port). Toute
+modification est visible au rechargement.
+
+Utilisez bien ce script plutôt que `python3 -m http.server` : il désactive la
+mise en cache. Sans cela, le navigateur garde les modules ES et l'on peut se
+retrouver à exécuter un mélange d'ancien et de neuf, ce qui ressemble en tout
+point à un bug.
 
 ## Tests
 
@@ -37,11 +42,15 @@ La suite tourne dans un vrai navigateur (Firefox, piloté par selenium) : c'est
 là que le code s'exécute, donc c'est là qu'il est vérifié.
 
 ```bash
-Programs/Web/tests/run.py                      # les trois suites, sans fenêtre
+Programs/Web/tests/run.py                      # les quatre suites, sans fenêtre
 Programs/Web/tests/run.py --headed             # en regardant le navigateur
 Programs/Web/tests/run.py --only unit          # une seule suite
 Programs/Web/tests/run.py --shots /tmp/calm    # avec des captures d'écran
 ```
+
+Les suites sont `unit`, `ui`, `registry` et `view`. La complète prend quelques
+minutes : l'essentiel est la physique, qui fait tourner des milliers de pas
+dans les deux dimensions.
 
 Les tests unitaires s'ouvrent aussi à la main dans un navigateur, sur
 `tests/unit.html`, où ils s'affichent en texte.
@@ -83,9 +92,21 @@ Sept modèles sont disponibles :
   seulement une répulsion entre corps. ⚠️ Ce modèle ne produit pas la
   séparation de phase dont il porte le nom : voir la réserve dans `AGENTS.md`.
 
-Les agents sont **colorés selon leur orientation**, en direct : un groupe
-polarisé vire à une seule couleur, une phase nématique montre deux teintes
-opposées en voies séparées, un gaz désordonné reste un confetti.
+## Deux vues
+
+Le sélecteur **2D / 3D**, en haut du panneau, bascule la vue *et* la
+simulation : les modèles tournent dans les deux dimensions. En 3D, la vue
+tourne lentement d'elle-même jusqu'à ce que vous la saisissiez — glissez pour
+l'orienter, molette pour zoomer.
+
+Les agents sont **colorés selon leur orientation**, en direct et dans les deux
+vues : un groupe polarisé vire à une seule couleur, une phase nématique montre
+deux teintes opposées en voies séparées, un gaz désordonné reste un confetti.
+En 3D, la teinte donne l'azimut, et l'élévation éclaircit vers le blanc ou
+assombrit vers le noir.
+
+La 3D s'appuie sur three.js, embarqué dans `Programs/Web/vendor/` : rien n'est
+chargé depuis un CDN, ni pour les tests ni en production.
 
 Les perceptrons existent dans la version Qt archivée et restent à porter.
 Chaque modèle est un fichier de

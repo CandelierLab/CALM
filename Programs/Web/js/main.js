@@ -3,7 +3,8 @@
  */
 
 import { State } from './engine.js';
-import { Renderer } from './renderer.js';
+import { Renderer } from './renderer2d.js';
+import { Renderer3d } from './renderer3d.js';
 import { UI } from './ui.js';
 
 /* Simulation period, in milliseconds. The Qt reference ran on a 25 Hz QTimer
@@ -22,10 +23,22 @@ const STEP_MS = 40;
  * to watch, not a computation to complete. */
 const MAX_FRAME_MS = 200;
 
-const canvas = document.getElementById('view');
-const renderer = new Renderer(canvas);
+/* One canvas per view, one shown at a time: a canvas holds either a 2D
+ * context or a WebGL one, never both. */
+const canvas2d = document.getElementById('view');
+const canvas3d = document.getElementById('view3d');
 
-let state = new State(100);
+const renderers = {
+  2: new Renderer(canvas2d),
+  3: new Renderer3d(canvas3d),
+};
+
+/* Must match the 'count' default in common.js: the interface reads its
+ * sliders from the descriptors, and the state is built before the UI. */
+let state = new State(500, 2);
+
+/* The renderer for the current view. */
+let renderer = renderers[2];
 
 const ui = new UI({
 
@@ -47,6 +60,28 @@ const ui = new UI({
      * agents obey, and keeping their positions is what makes the comparison
      * between two models readable. */
   },
+
+  onDim(dim) {
+    /* Switching view switches the simulation with it: the models run in
+     * whatever dimension the state has, so this is one change, not two. The
+     * agents are reseeded — a 2D configuration lifted into 3D would sit in a
+     * single plane and take a long time to look like anything. */
+    state.setDim(dim);
+
+    /* Give the GPU buffers back when leaving the 3D view — but not when
+     * entering it, which would throw away the mesh just built. */
+    if (dim !== 3) renderers[3].dispose();
+
+    canvas2d.hidden = dim !== 2;
+    canvas3d.hidden = dim !== 3;
+
+    renderer = renderers[dim];
+    renderer.dark = ui.dark;
+
+    /* The element was hidden until a moment ago, so it had no measurable size
+     * to size a backing store against. */
+    renderer.resize();
+  },
 });
 
 renderer.dark = ui.dark;
@@ -54,7 +89,7 @@ renderer.dark = ui.dark;
 // ─── layout ──────────────────────────────────────────────────────────────
 
 const fit = () => renderer.resize();
-new ResizeObserver(fit).observe(canvas.parentElement);
+new ResizeObserver(fit).observe(canvas2d.parentElement);
 window.addEventListener('resize', fit);
 fit();
 
@@ -79,7 +114,10 @@ function frame(now) {
 
   /* The renderer's theme is owned by the UI, which can flip it at any time. */
   renderer.dark = ui.dark;
-  renderer.draw(state);
+
+  /* The 3D view turns slowly on its own until the visitor drags it, so it
+   * needs to know how much time passed. The 2D one ignores the argument. */
+  renderer.draw(state, elapsed / 1000);
 
   requestAnimationFrame(frame);
 }

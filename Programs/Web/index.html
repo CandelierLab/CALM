@@ -18,6 +18,7 @@
     </div>
     <div class="switches">
       <div id="langs"></div>
+      <div id="dims"></div>
       <button type="button" id="theme" aria-label="Thème">◐</button>
     </div>
   </header>
@@ -50,9 +51,16 @@
 </aside>
 
 <main id="stage">
+  <!-- Two canvases, one shown at a time: a canvas holds either a 2D context
+       or a WebGL one, never both. -->
   <canvas id="view"></canvas>
+  <canvas id="view3d" hidden></canvas>
 </main>
 
+<!-- three.js, vendored rather than loaded from a CDN so the tests run offline
+     and the deployed page has no third-party dependency at runtime. Its UMD
+     build defines the global THREE, so it must load before the module. -->
+<script src="vendor/three.min.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
 </html>
