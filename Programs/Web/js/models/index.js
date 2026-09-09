@@ -21,6 +21,11 @@
  *                 last, since models differ in whether they set the heading
  *                 or add to it.
  *
+ *   draft         optional, default false. A draft model is hidden from the
+ *                 deployed site but shown in development, so that something
+ *                 half-finished can live in the tree without being presented
+ *                 to visitors as though it worked. See publishedModels().
+ *
  *   constrain(p, key)   optional. Called after the visitor moves a slider,
  *                 with all current values and the key that changed. Returns
  *                 an object of corrections — { otherKey: newValue } — which
@@ -51,7 +56,7 @@ import mips from './mips.js';
  * The ids are not the display names and never follow them: they appear in the
  * URL fragment, so renaming a model in the interface must not break a link
  * somebody saved. */
-export const models = [
+export const allModels = [
   blind,
   vicsek,
   topological,
@@ -60,5 +65,32 @@ export const models = [
   peruani,
   mips,
 ];
+
+/* Where drafts are shown: on a development host, or on explicit request.
+ *
+ * The rule is deliberately about *where the page is served from* rather than
+ * about a build step. There is no build here — what runs in development is
+ * byte for byte what gets deployed — so the distinction has to be made at
+ * runtime or not at all. And "?draft" means a draft can still be looked at on
+ * the live site by someone who knows to ask, which is what makes it possible
+ * to check a fix in place.
+ */
+export function showsDrafts(location = globalThis.location) {
+  if (!location) return true;                    // not in a browser: show all
+
+  const host = location.hostname ?? '';
+  if (host === '' || host === 'localhost' || host === '127.0.0.1'
+      || host === '::1' || host.endsWith('.local')) {
+    return true;
+  }
+
+  return new URLSearchParams(location.search ?? '').has('draft');
+}
+
+export const publishedModels = (location) =>
+  allModels.filter((m) => !m.draft || showsDrafts(location));
+
+/* What the interface builds itself from. */
+export const models = publishedModels();
 
 export const byId = (id) => models.find((m) => m.id === id) ?? models[0];

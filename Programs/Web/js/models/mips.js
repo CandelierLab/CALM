@@ -76,6 +76,14 @@ export default {
 
   illustration: 'MIPS',
 
+  /* Not published: shown in development, hidden from the deployed site.
+   *
+   * The model runs and its code is correct, but it does not produce the phase
+   * separation it is named after — see the note in AGENTS.md and in the tests.
+   * Offering it to visitors would be showing them a phenomenon that is not
+   * there. It stays in the tree, and in the tests, until it is fixed. */
+  draft: true,
+
   params: [
     { key: 'sigma', label: '<i>σ</i>', min: 0.005, max: 0.08, step: 0.001, value: 0.03, decimals: 3 },
     /* A has to be able to actually stop an agent, or bodies simply pass

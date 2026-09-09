@@ -113,6 +113,31 @@ Chaque modèle est un fichier de
 [`Programs/Web/js/models/`](Programs/Web/js/models) et une ligne dans le
 registre ; l'interface s'en déduit.
 
+## Déploiement
+
+Le logiciel est en ligne : **<https://calm.labojeanperrin.fr/>**
+
+```bash
+Programs/Web/deploy.sh              # tests, puis envoi
+Programs/Web/deploy.sh --dry-run    # ce qui partirait, sans rien modifier
+Programs/Web/deploy.sh --no-tests   # envoi seul
+```
+
+Le site est entièrement statique : le déploiement est une copie de
+`Programs/Web`, sans compilation ni Python côté serveur. Ce qui est envoyé est
+octet pour octet ce qui a été testé. Le script vérifie ensuite que la page et
+chacun de ses modules répondent.
+
+### Modèles en brouillon
+
+Un modèle marqué `draft: true` dans son fichier reste présent dans le dépôt et
+dans les tests, mais n'apparaît pas dans le sélecteur du site public. Ajouter
+`?draft` à l'URL les fait réapparaître, ce qui permet d'en vérifier un
+directement en ligne.
+
+C'est le cas des **particules actives répulsives (MIPS)**, qui ne produisent
+pas la séparation de phase dont elles portent le nom.
+
 ## Licence
 
 Le dépôt est ouvert. Crafted with ❤️ by Raphaël Candelier.

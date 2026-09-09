@@ -19,7 +19,8 @@
 <script type="module">
 import { State, gaussian, NeighbourGrid, KNearest } from '../js/engine.js';
 import { Renderer } from '../js/renderer2d.js';
-import { models, byId } from '../js/models/index.js';
+import { models, allModels, byId, showsDrafts, publishedModels }
+  from '../js/models/index.js';
 import { COMMON_PARAMS } from '../js/common.js';
 import { headingColor, directionRgb, WHEEL } from '../js/colormap.js';
 
@@ -1132,6 +1133,60 @@ for (const dim of DIMS) {
   }
 
   ok('byId falls back to the first model', byId('no-such-model') === models[0]);
+}
+
+// ─── drafts: in the tree, out of the deployed site ──────────────────────
+
+{
+  /* A draft model exists and is tested, but is not offered to visitors. The
+   * rule is evaluated at runtime against the page's own host, because there is
+   * no build step to make the distinction at: what runs here is byte for byte
+   * what gets deployed. */
+  const drafts = allModels.filter((m) => m.draft);
+
+  ok('MIPS is the only draft', drafts.length === 1 && drafts[0].id === 'mips',
+     drafts.map((m) => m.id).join(','));
+  ok('every other model is published',
+     allModels.filter((m) => !m.draft).length === allModels.length - 1);
+
+  ok('drafts show on localhost',
+     showsDrafts({ hostname: 'localhost', search: '' }));
+  ok('drafts show on 127.0.0.1',
+     showsDrafts({ hostname: '127.0.0.1', search: '' }));
+  ok('drafts show on a .local host',
+     showsDrafts({ hostname: 'ljp.local', search: '' }));
+  ok('drafts show from a file:// page',
+     showsDrafts({ hostname: '', search: '' }));
+
+  ok('drafts are hidden on the deployed host',
+     showsDrafts({ hostname: 'calm.labojeanperrin.fr', search: '' }) === false);
+  ok('drafts are hidden on any public host',
+     showsDrafts({ hostname: 'example.org', search: '' }) === false);
+
+  /* ?draft brings them back, so a fix can be checked in place on the live
+   * site without a redeploy of the registry. */
+  ok('?draft reveals them on a public host',
+     showsDrafts({ hostname: 'calm.labojeanperrin.fr', search: '?draft' }));
+  ok('?draft=1 works too',
+     showsDrafts({ hostname: 'calm.labojeanperrin.fr', search: '?lang=fr&draft=1' }));
+
+  const published = publishedModels({ hostname: 'calm.labojeanperrin.fr', search: '' });
+  ok('the deployed registry drops the draft',
+     published.length === allModels.length - 1
+     && !published.some((m) => m.id === 'mips'),
+     published.map((m) => m.id).join(','));
+
+  const local = publishedModels({ hostname: 'localhost', search: '' });
+  ok('the development registry keeps everything',
+     local.length === allModels.length);
+
+  /* And the order survives the filter: the selector must not be reshuffled by
+   * removing one entry. */
+  ok('filtering preserves the order',
+     published.every((m, i) => m === allModels.filter((x) => !x.draft)[i]));
+
+  /* These tests run on 127.0.0.1, so the physics suites above did see MIPS. */
+  ok('this test run exercised the draft', models.some((m) => m.id === 'mips'));
 }
 
 // ─── report ─────────────────────────────────────────────────────────────

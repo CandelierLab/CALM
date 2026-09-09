@@ -374,11 +374,43 @@ Le sandbox empêche selenium de tuer geckodriver en fin de course : une
 `PermissionError` s'affiche **après** le décompte des tests. Elle est sans
 effet sur les résultats.
 
-## Le déploiement visé
+## Le déploiement
+
+**En ligne : <https://calm.labojeanperrin.fr/>**, servi depuis
+`~/softwares/calm` sur le compte IONOS, atteint par l'alias SSH `ljp-prod`.
+`Programs/Web/deploy.sh` fait tout : suite de tests, `rsync`, puis
+vérification que la page répond, que chaque module qu'elle importe répond
+aussi, et que les `.js` sortent bien avec un type MIME JavaScript — un seul
+404 parmi les modules laisse un écran blanc sans le moindre indice.
+
+Le domaine est **`labojeanperrin.fr`**, pas `laboratoirejeanperrin.fr` : ce
+dernier ne résout pas du tout. Le certificat `*.labojeanperrin.fr` couvre une
+étiquette et vaut jusqu'au 20 janvier 2027, donc le sous-domaine est protégé
+sans démarche supplémentaire.
 
 Sous-domaine statique pur, sans cohérence visuelle avec le site du LJP : le
-logiciel est indépendant. Développement en local pour l'instant, aucun
-déploiement effectué.
+logiciel est indépendant.
+
+### Les brouillons
+
+Un modèle peut porter `draft: true`. Il reste dans l'arbre et dans les tests,
+mais disparaît du sélecteur sur le site public — offrir aux visiteurs un
+modèle qui ne fait pas ce qu'il annonce serait leur montrer un phénomène qui
+n'existe pas.
+
+La règle est évaluée **à l'exécution**, contre l'hôte de la page, et non par
+une étape de compilation : il n'y en a pas, ce qui tourne en développement est
+octet pour octet ce qui est déployé, donc la distinction se fait au runtime ou
+pas du tout. Les brouillons apparaissent sur un hôte local (`localhost`,
+`127.0.0.1`, `*.local`, une page `file://`) et, partout, sur demande explicite
+avec `?draft` — ce qui permet de vérifier une correction directement en ligne.
+
+Seul `mips` est un brouillon aujourd'hui, pour la raison consignée plus haut.
+Son fichier et ses illustrations partent quand même sur le serveur, ce qui est
+volontaire : c'est ce qui rend `?draft` utilisable.
+
+`showsDrafts()` prend un objet `location` en argument, donc le filtrage se
+teste sur des hôtes fictifs sans avoir à déployer quoi que ce soit.
 
 Ce qui est vérifié côté hébergement, et qui a déterminé toute l'architecture :
 
