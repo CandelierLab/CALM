@@ -34,12 +34,27 @@
 
 import blind from './blind.js';
 import vicsek from './vicsek.js';
+import topological from './topological.js';
+import nematic from './nematic.js';
 import aokiReynoldsCouzin from './aoki-reynolds-couzin.js';
 import peruani from './peruani.js';
+import mips from './mips.js';
 
 /* Order is the order of the selector, and the first one is the default: the
  * blind agents come first because they are the null model everything else is
  * read against. */
-export const models = [blind, vicsek, aokiReynoldsCouzin, peruani];
+/* Roughly in order of how much machinery each one needs, which is also a
+ * usable reading order: no interaction, alignment by distance, alignment by
+ * count, alignment on an axis, three zones, position-based attraction, and
+ * finally no orientation interaction at all. */
+export const models = [
+  blind,
+  vicsek,
+  topological,
+  nematic,
+  aokiReynoldsCouzin,
+  peruani,
+  mips,
+];
 
 export const byId = (id) => models.find((m) => m.id === id) ?? models[0];

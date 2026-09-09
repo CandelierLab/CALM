@@ -9,6 +9,14 @@
  *
  * Only the background and the box outline depend on the theme; the agents are
  * drawn the same way in both.
+ *
+ * Colour encodes **heading**, live: an agent's hue is its own direction of
+ * travel. That turns the colour field into a readout of the order — a
+ * polarised flock goes uniformly one colour, a nematic phase shows two hues
+ * opposite on the wheel running as separate lanes, and a disordered gas stays
+ * a confetti of everything. Colouring by initial position, as the Qt version
+ * did, instead reported how much the flock had stirred, which said nothing
+ * about the state it was in.
  */
 
 /* Half-length of an agent, in box units. The Python reference calls it s. */
@@ -18,27 +26,27 @@ const S = 0.011;
  * a shape straddles an edge and must be drawn twice. */
 const REACH = S;
 
+/* Hues per turn. Headings change every frame, so building a colour string per
+ * agent per frame would allocate thousands of short-lived strings a second;
+ * this table is built once and indexed by angle instead. One degree of
+ * quantisation is well below what the eye resolves at this size. */
+const HUES = 360;
+
+/* HSV(h, 1, 1) of the Qt reference is exactly HSL(h, 100%, 50%). */
+const WHEEL = Array.from({ length: HUES },
+                         (_, i) => `hsl(${(i * 360) / HUES} 100% 50%)`);
+
+const TWO_PI = 2 * Math.PI;
+
 export class Renderer {
 
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
     this.dark = false;
-    this.colors = [];
 
     /* Side of the drawing area in CSS pixels, set by resize(). */
     this.size = 0;
-  }
-
-  /* Cache one CSS colour per agent. Hue only changes on a shuffle or a resize,
-   * so building these strings per frame would be pure waste.
-   *
-   * The reference uses HSV(hue, 1, 1), which is exactly HSL(hue, 100%, 50%). */
-  refreshColors(state) {
-    this.colors = new Array(state.n);
-    for (let i = 0; i < state.n; i++) {
-      this.colors[i] = `hsl(${state.hue[i] * 360} 100% 50%)`;
-    }
   }
 
   /* Match the backing store to the element's real size and pixel density.
@@ -78,6 +86,13 @@ export class Renderer {
 
     for (let i = 0; i < state.n; i++) {
 
+      /* Hue straight from the heading, so the colour follows the agent as it
+       * turns. The modulo brings in headings that have wandered outside
+       * [0, 2π) — nothing normalises them, since only their sine and cosine
+       * ever matter to the models. */
+      const turn = ((state.a[i] % TWO_PI) + TWO_PI) % TWO_PI;
+      const color = WHEEL[((turn / TWO_PI) * HUES) | 0] ?? WHEEL[0];
+
       /* Stroke in the agent's own colour, in both themes. The stroke is there
        * to round the outline and thicken the shape a little, not to outline it
        * in a contrasting ink — a black edge on a light background made the
@@ -86,7 +101,6 @@ export class Renderer {
        *
        * The Qt reference did outline in black on its light theme; this is a
        * deliberate departure. */
-      const color = this.colors[i] ?? '#888';
       ctx.fillStyle = color;
       ctx.strokeStyle = color;
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- CALM — Nematic agents: aligned on an axis, travelling both ways -->
+<svg xmlns="http://www.w3.org/2000/svg" width="214.70172mm" height="70mm"
+     viewBox="0 0 214.70172 70" version="1.1">
+  <defs>
+    <path id="tri" d="M 5.5,0 L -3.5,3.4 L -3.5,-3.4 Z"/>
+  </defs>
+    <path d="M 12,35 L 203,35" stroke="#8c8c8c" stroke-width="0.8" stroke-dasharray="4,3" fill="none"/>
+    <use href="#tri" transform="translate(26.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(59.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(92.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(125.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(158.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(191.0,16.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(26.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(59.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(92.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(125.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(158.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(191.0,35.0) rotate(180)" fill="#0088aa"/>
+    <use href="#tri" transform="translate(26.0,54.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(59.0,54.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(92.0,54.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(125.0,54.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(158.0,54.0) rotate(0)" fill="#000000"/>
+    <use href="#tri" transform="translate(191.0,54.0) rotate(0)" fill="#000000"/>
+    <text x="107" y="67" font-family="serif" font-size="8" text-anchor="middle" fill="#000000">one axis, both directions</text>
+</svg>

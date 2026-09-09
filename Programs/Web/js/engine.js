@@ -26,27 +26,18 @@ export class State {
     this.y = new Float32Array(n);
     this.a = new Float32Array(n);
 
-    /* Hue is a display attribute, not a physical one, but it is drawn from the
-     * agent's position at shuffle time and must survive the whole run: it is
-     * what lets the eye follow the mixing. Kept here so that one shuffle
-     * reseeds positions and colors together. */
-    this.hue = new Float32Array(n);
-
     /* Scratch copy of the headings, see freezeHeadings(). */
     this._frozen = new Float32Array(n);
 
     this.shuffle();
   }
 
-  /* Uniform positions, uniform orientations, hue from the initial x. The
-   * colour rule is the Python one: hue = x, so the flock starts as a
-   * left-to-right rainbow and the gradient reports how much it has stirred. */
+  /* Uniform positions, uniform orientations. */
   shuffle() {
     for (let i = 0; i < this.n; i++) {
       this.x[i] = Math.random();
       this.y[i] = Math.random();
       this.a[i] = Math.random() * 2 * Math.PI;
-      this.hue[i] = this.x[i];
     }
   }
 
@@ -66,14 +57,12 @@ export class State {
     this.x = grow(this.x);
     this.y = grow(this.y);
     this.a = grow(this.a);
-    this.hue = grow(this.hue);
     this._frozen = new Float32Array(n);
 
     for (let i = keep; i < n; i++) {
       this.x[i] = Math.random();
       this.y[i] = Math.random();
       this.a[i] = Math.random() * 2 * Math.PI;
-      this.hue[i] = this.x[i];
     }
 
     this.n = n;
@@ -90,6 +79,20 @@ export class State {
   freezeHeadings() {
     this._frozen.set(this.a);
     return this._frozen;
+  }
+
+  /* Add a displacement to every position, with wrapping.
+   *
+   * Almost every model here steers: it decides a heading and lets move() turn
+   * that into a displacement. A model with *forces* — repulsion between
+   * bodies, say — also needs to push agents sideways, independently of where
+   * they are pointing, and this is how it does that.
+   */
+  displace(dx, dy) {
+    for (let i = 0; i < this.n; i++) {
+      this.x[i] = (((this.x[i] + dx[i]) % 1) + 1) % 1;
+      this.y[i] = (((this.y[i] + dy[i]) % 1) + 1) % 1;
+    }
   }
 
   /* Angular noise, then advection, with wrapping. Shared by every model: the
@@ -219,5 +222,105 @@ export class NeighbourGrid {
         }
       }
     }
+  }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════
+ *                        K NEAREST NEIGHBOURS
+ * ══════════════════════════════════════════════════════════════════════════
+ *
+ * Topological neighbourhoods — the k nearest agents, whatever the distance —
+ * rather than metric ones. The distinction is the whole point of the model
+ * that uses this: a metric neighbourhood empties out when the group spreads,
+ * a topological one never does.
+ *
+ * Which makes the implementation awkward, because the grid needs a radius and
+ * this rule has none. The way out is two-tier: search a radius wide enough to
+ * hold k neighbours *at the mean density*, and for the agents that come up
+ * short — the ones in a sparse patch, exactly the ones the model is about —
+ * fall back to scanning everything. Truncating instead would quietly turn the
+ * model back into a metric one, which is the one thing it must not be.
+ */
+
+export class KNearest {
+
+  constructor() {
+    this.grid = new NeighbourGrid();
+    this.radius = 0;
+
+    /* Results of the last find(): neighbour indices, nearest first, and how
+     * many were actually found. Reused between calls, so read them before
+     * calling again. */
+    this.index = new Int32Array(0);
+    this.found = 0;
+
+    this._dist2 = new Float64Array(0);
+  }
+
+  /* Index the agents once for the whole step. */
+  build(state, k) {
+    /* Radius expected to hold k neighbours at the mean density (the box has
+     * unit area, so the density is just the count), with a factor of two of
+     * margin. Capped at half the box: beyond that the torus wraps onto itself
+     * and a wider search finds nothing new. */
+    const wanted = Math.max(1, Math.min(k, state.n - 1));
+    this.radius = Math.min(0.5, 2 * Math.sqrt(wanted / (Math.PI * Math.max(1, state.n))));
+
+    this.grid.build(state, this.radius);
+
+    if (this.index.length < wanted) {
+      this.index = new Int32Array(wanted);
+      this._dist2 = new Float64Array(wanted);
+    }
+  }
+
+  /* Fill index[0 .. found-1] with the nearest neighbours of agent i, closest
+   * first, excluding i itself. Sets found to the number available, which is
+   * less than k only when the flock has fewer than k+1 agents.
+   */
+  find(state, i, k) {
+    const wanted = Math.max(1, Math.min(k, state.n - 1));
+    this.found = 0;
+
+    /* Insertion into a sorted list of at most k entries. k is small — seven
+     * in the starlings — so this beats sorting the whole neighbourhood. */
+    const offer = (j, d2) => {
+      if (this.found === wanted && d2 >= this._dist2[this.found - 1]) return;
+
+      let at = Math.min(this.found, wanted - 1);
+      while (at > 0 && this._dist2[at - 1] > d2) {
+        this._dist2[at] = this._dist2[at - 1];
+        this.index[at] = this.index[at - 1];
+        at--;
+      }
+      this._dist2[at] = d2;
+      this.index[at] = j;
+      if (this.found < wanted) this.found++;
+    };
+
+    this.grid.each(state, i, this.radius, (j, dx, dy) => {
+      if (j === i) return;
+      offer(j, dx * dx + dy * dy);
+    });
+
+    /* Short of neighbours: this agent sits in a sparse patch, so scan the
+     * whole flock rather than pretend its neighbourhood ends at the radius. */
+    if (this.found < wanted) {
+      this.found = 0;
+      const xi = state.x[i];
+      const yi = state.y[i];
+
+      for (let j = 0; j < state.n; j++) {
+        if (j === i) continue;
+        let dx = state.x[j] - xi;
+        let dy = state.y[j] - yi;
+        dx -= Math.round(dx);
+        dy -= Math.round(dy);
+        offer(j, dx * dx + dy * dy);
+      }
+    }
+
+    return this.found;
   }
 }

@@ -48,8 +48,11 @@ js/i18n.js            chaînes bilingues de l'interface
 js/models/index.js    le registre
 js/models/blind.js    les agents aveugles
 js/models/vicsek.js   les agents de Vicsek
+js/models/topological.js   alignement sur les k plus proches
+js/models/nematic.js  alignement sur un axe
 js/models/aoki-reynolds-couzin.js   les trois zones concentriques
 js/models/peruani.js  attraction dans un cône de vision
+js/models/mips.js     particules actives répulsives
 img/                  illustrations, une paire clair/sombre par modèle
 tests/                les suites de tests
 ```
@@ -178,8 +181,10 @@ voisins réels, pas l'algorithme — la grille, elle, apporte un facteur dix.
 
 ## Tests
 
-`Programs/Web/tests/run.py` pilote Firefox via selenium. **191 assertions,
-toutes vertes** au dernier passage.
+`Programs/Web/tests/run.py` pilote Firefox via selenium. **266 assertions** au
+dernier passage. La suite complète prend maintenant plus de deux minutes,
+l'essentiel étant les tests de physique qui font tourner des milliers de pas ;
+`--only unit` en est la part lente.
 
 | Suite | `--only` | Ce qu'elle couvre |
 | --- | --- | --- |
@@ -197,6 +202,10 @@ non sur le code :
   hasard à 400 agents. C'est ce qui fait d'eux un modèle nul.
 - **Vicsek à rayon nul redevient aveugle** — un agent n'a alors que lui-même
   pour voisin. La limite doit être correcte, pas gardée par un cas spécial.
+- **Le voisinage topologique résiste à la dilution** là où le métrique cède —
+  0,90 contre 0,10 sur le même groupe dilué. Si ce test cesse de séparer les
+  deux modèles, la règle topologique est redevenue métrique.
+- **La phase nématique est ordonnée sans être polarisée** — 0,99 contre 0,18.
 - **Aoki-Reynolds-Couzin fait les trois choses** — zone d'alignement dominante :
   polarisation > 0,5. Zone d'attraction dominante : la distance moyenne au plus
   proche voisin chute de 0,030 à 0,007. Répulsion seule : les paires proches
@@ -217,6 +226,21 @@ retendra :
 - « fuir un voisin droit devant doit donner +π/6 » est **indéterminé** : c'est
   une bifurcation, gauche et droite se valent. Seul le module est assertable
   là ; le signe se teste sur un voisin latéral.
+- « un groupe dilué perd son ordre avec un rayon métrique » est **faux à
+  faible bruit** : sur une longue course, chaque agent traverse le tore des
+  dizaines de fois et les rencontres rares suffisent (Vicsek à 0,996). La
+  comparaison ne vit que là où le bruit est assez fort pour que l'ordre exige
+  un alignement à *chaque* pas.
+- « la fraction d'agents dans le plus grand amas mesure l'agrégation » est
+  **inutilisable ici** : à cette densité la connectivité est au seuil de
+  percolation, et deux tirages du *même* modèle aveugle donnent 36 % et 69 %.
+  Cette mesure avait fait croire à une agrégation MIPS qui n'existe pas.
+
+Une conséquence de tout cela : le contrat du registre vérifie désormais que
+chaque valeur par défaut **tombe sur un cran de son curseur**. Sans quoi le
+navigateur l'arrondit et le modèle tourne avec une valeur que son propre
+descripteur n'a jamais déclarée. Le test a trouvé deux cas dès son écriture
+(`Rrep` à 0,025 sur un pas de 0,002, `α` à 0,393 sur un pas de 0,01).
 
 Un détail de mise en œuvre : les tests ne peuvent pas capturer une erreur de
 module après coup. `run.py` écrit donc une copie jetable de `index.html`
@@ -280,8 +304,11 @@ n'a **pas** été modifié, conformément à la consigne.
 | --- | --- | --- |
 | Agents aveugles | aucun | modèle nul |
 | Agents de Vicsek | `r` | version Qt |
+| Agents topologiques | `k` | PNAS **105**, 1232 (2008) |
+| Agents nématiques | `r` | PRL **104**, 184502 (2010) |
 | Agents d'Aoki-Reynolds-Couzin | `Rrep`, `Ral`, `Ratt`, `α` | version Qt |
 | Agents de Peruani | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
+| Particules actives répulsives (MIPS) | `σ`, `A` | voir la réserve ci-dessous |
 | Perceptrons | `w1`…`w4`, `δ` | **à porter** |
 
 **Aoki-Reynolds-Couzin** porte le nom complet des trois contributions : Aoki
@@ -304,6 +331,45 @@ justifie sa place à côté des trois autres.
 
 Le bruit du modèle, `√(2Dθ)`, est le curseur général de bruit de
 réorientation, et le pas vaut une unité de temps, donc `γ` se lit comme `γ·dt`.
+
+**Les agents topologiques** comptent leur voisinage au lieu de le mesurer :
+les `k` plus proches, quelle que soit la distance. C'est ce qu'on observe chez
+les étourneaux (Ballerini *et al.*, 2008), et la conséquence est testée
+directement — un groupe dilué reste ordonné avec un voisinage topologique
+(polarisation 0,90) et se désordonne avec un rayon métrique (0,10).
+
+L'implémentation est en deux étages, dans `KNearest` : la grille cherche dans
+un rayon calculé pour contenir `k` voisins à la densité moyenne, et les agents
+qui en trouvent moins — ceux des zones clairsemées, précisément ceux dont parle
+le modèle — déclenchent un balayage complet. Tronquer aurait silencieusement
+rendu le modèle métrique, ce qui est la seule chose qu'il ne doit pas être.
+
+**Les agents nématiques** s'alignent modulo π : le doublement des angles rend
+la moyenne aveugle à la distinction tête/queue. Le directeur ne nomme qu'un
+axe, donc deux caps opposés ; l'agent garde celui vers lequel il allait déjà.
+Le test mesure les deux paramètres d'ordre à la fois — nématique 0,99,
+polarisation 0,18 — ce qui est la signature de la phase et la distingue de
+Vicsek.
+
+**Les particules actives répulsives** n'ont aucune interaction d'orientation :
+seule une répulsion à courte portée, réciproque, et c'est le premier modèle qui
+a besoin de `State.displace()` plutôt que du seul `state.move()`.
+
+> **Réserve, à lire avant de présenter ce modèle.** Il ne produit **pas** la
+> séparation de phase (MIPS) dont il porte le nom. Mesuré sans ambiguïté : le
+> nombre moyen de voisins dans 3σ vaut 18,1 contre 17,9 pour des marches
+> aveugles — identique, et reproductible au dixième — sur un balayage en
+> densité (φ de 0,28 à 0,63), en intensité de répulsion (`A` de 0,006 à 0,05)
+> et en persistance (ℓ_p de 1σ à 1000σ). Le groupe reste homogène.
+>
+> La raison la plus probable n'est pas réglable : la boîte fait une unité et σ
+> vaut 0,03, donc le système mesure une trentaine de diamètres là où la
+> littérature en utilise des centaines. Un germe critique n'y tient pas.
+>
+> Ce que le code fait est correct et testé (répulsion réciproque, aucune
+> polarisation, réduction exacte au modèle aveugle quand `A` = 0). Ce qu'il ne
+> fait pas, c'est le phénomène. À décider : le garder en le décrivant
+> honnêtement, le renommer, ou le retirer.
 
 ## Reste à porter
 

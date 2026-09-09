@@ -14,7 +14,7 @@
 <canvas id="probe" width="400" height="400" style="display:none"></canvas>
 
 <script type="module">
-import { State, gaussian, NeighbourGrid } from '../js/engine.js';
+import { State, gaussian, NeighbourGrid, KNearest } from '../js/engine.js';
 import { Renderer } from '../js/renderer.js';
 import { models, byId } from '../js/models/index.js';
 import { COMMON_PARAMS } from '../js/common.js';
@@ -29,8 +29,6 @@ const ok = (label, condition, detail = '') =>
   const state = new State(500);
   ok('shuffle stays in the box',
      [...state.x, ...state.y].every((v) => v >= 0 && v < 1));
-  ok('hue follows the initial x',
-     [...state.hue].every((h, i) => h === state.x[i]));
 
   /* Walk hard and long enough that every agent crosses several edges. A speed
    * of 0.05 per step over 400 steps is 20 box lengths. */
@@ -128,13 +126,14 @@ const ok = (label, condition, detail = '') =>
   renderer.dark = true;
 
   /* One agent sitting just inside the left edge. Its triangle sticks out, and
-   * the missing sliver has to appear against the right edge. */
+   * the missing sliver has to appear against the right edge.
+   *
+   * Heading 0 is hue 0, so the agent is pure red and unmistakable against the
+   * background — the colour comes from the heading now, not from a hue field. */
   const state = new State(1);
   state.x[0] = 0.002;
   state.y[0] = 0.5;
-  state.a[0] = Math.PI;
-  state.hue[0] = 0;               // pure red, unmistakable
-  renderer.refreshColors(state);
+  state.a[0] = 0;
   renderer.draw(state);
 
   const ctx = canvas.getContext('2d');
@@ -560,6 +559,310 @@ const ok = (label, condition, detail = '') =>
   }
 }
 
+
+// ─── k nearest neighbours: exact, or the model is not topological ───────
+
+{
+  /* Same standard as the grid: the fast path has to return exactly what an
+   * exhaustive search would. Checked at several k, including k larger than
+   * the flock. */
+  const state = new State(200);
+  const knn = new KNearest();
+  let mismatches = 0;
+  let checked = 0;
+
+  for (const k of [1, 3, 7, 20, 199, 400]) {
+    knn.build(state, k);
+
+    for (let i = 0; i < state.n; i += 7) {
+      const found = knn.find(state, i, k);
+      const fast = Array.from(knn.index.subarray(0, found));
+
+      /* Exhaustive: every distance, sorted. */
+      const all = [];
+      for (let j = 0; j < state.n; j++) {
+        if (j === i) continue;
+        let dx = state.x[j] - state.x[i]; dx -= Math.round(dx);
+        let dy = state.y[j] - state.y[i]; dy -= Math.round(dy);
+        all.push([j, dx * dx + dy * dy]);
+      }
+      all.sort((a, b) => a[1] - b[1]);
+      const slow = all.slice(0, Math.min(k, state.n - 1)).map((e) => e[0]);
+
+      checked += slow.length;
+      if (fast.join(',') !== slow.join(',')) mismatches++;
+    }
+  }
+
+  ok('k nearest matches an exhaustive search', mismatches === 0,
+     `${mismatches} disagreements over ${checked} neighbours`);
+  ok('the k-nearest comparison was not vacuous', checked > 2000, checked);
+
+  knn.build(state, 500);
+  const capped = knn.find(state, 0, 500);
+  ok('asking for more neighbours than exist returns them all',
+     capped === state.n - 1, capped);
+}
+
+// ─── topological agents ─────────────────────────────────────────────────
+
+const polarisation = (state) => {
+  let cx = 0, cy = 0;
+  for (let i = 0; i < state.n; i++) { cx += Math.cos(state.a[i]); cy += Math.sin(state.a[i]); }
+  return Math.hypot(cx, cy) / state.n;
+};
+
+{
+  const topological = byId('topological');
+  ok('topological is registered', topological.id === 'topological');
+
+  {
+    const state = new State(300);
+    for (let k = 0; k < 1200; k++) topological.step(state, { speed: 0.006, noise: 0.05, k: 7 });
+    ok('topological agents order', polarisation(state) > 0.5, polarisation(state).toFixed(3));
+  }
+
+  /* The point of the model, tested directly.
+   *
+   * Thin the flock right out. A metric neighbourhood of fixed radius empties,
+   * so Vicsek loses its order; a topological one never empties, so this stays
+   * coherent. If this test ever stops separating the two models, the
+   * topological rule has silently become metric. */
+  {
+    const sparse = 40;
+    const steps = 1500;
+
+    /* The noise matters as much as the density here. At very low noise even a
+     * nearly empty metric neighbourhood eventually orders the flock, because
+     * over a long run every agent crosses the whole torus many times and the
+     * rare encounters are enough — the first version of this test used noise
+     * 0.05 and found Vicsek at 0.996, which is true and simply not the
+     * regime the comparison lives in. With enough noise, order survives only
+     * where alignment acts at *every* step, which is the difference being
+     * tested. */
+    const noise = 0.4;
+
+    const topo = new State(sparse);
+    for (let k = 0; k < steps; k++) topological.step(topo, { speed: 0.006, noise, k: 7 });
+
+    const metric = new State(sparse);
+    for (let k = 0; k < steps; k++) byId('vicsek').step(metric, { speed: 0.006, noise, r: 0.03 });
+
+    const topoOrder = polarisation(topo);
+    const metricOrder = polarisation(metric);
+
+    ok('a thinned flock stays ordered with topological neighbours',
+       topoOrder > 0.6, topoOrder.toFixed(3));
+    ok('the same flock loses order with a metric radius',
+       metricOrder < topoOrder - 0.3, `topological ${topoOrder.toFixed(3)} vs metric ${metricOrder.toFixed(3)}`);
+  }
+
+  {
+    const state = new State(200);
+    for (let k = 0; k < 500; k++) topological.step(state, { speed: 0.006, noise: 0.1, k: 1 });
+    ok('k = 1 is a valid neighbourhood',
+       [...state.x, ...state.a].every(Number.isFinite));
+  }
+}
+
+// ─── nematic agents ─────────────────────────────────────────────────────
+
+{
+  const nematic = byId('nematic');
+  ok('nematic is registered', nematic.id === 'nematic');
+
+  /* Nematic order parameter |<e^{2i0}>|: blind to which end of the axis an
+   * agent points, so it sees the order that polarisation cannot. */
+  const nematicOrder = (state) => {
+    let cx = 0, cy = 0;
+    for (let i = 0; i < state.n; i++) {
+      cx += Math.cos(2 * state.a[i]);
+      cy += Math.sin(2 * state.a[i]);
+    }
+    return Math.hypot(cx, cy) / state.n;
+  };
+
+  /* The signature of the phase: strongly ordered on the axis, and *not*
+   * polarised — as many agents run one way as the other. Getting both in one
+   * test is what distinguishes this from Vicsek. */
+  {
+    const state = new State(400);
+    for (let k = 0; k < 2000; k++) nematic.step(state, { speed: 0.006, noise: 0.05, r: 0.1 });
+    const nem = nematicOrder(state);
+    const pol = polarisation(state);
+    ok('nematic agents order on an axis', nem > 0.7, nem.toFixed(3));
+    ok('and stay unpolarised while doing it', pol < nem - 0.25,
+       `nematic ${nem.toFixed(3)} vs polarisation ${pol.toFixed(3)}`);
+  }
+
+  /* Two agents head to head are already nematically aligned: neither should
+   * turn. Under Vicsek's rule they would both swing to the average and end
+   * up perpendicular to where they started. */
+  {
+    const state = new State(2);
+    state.x[0] = 0.5;  state.y[0] = 0.5;  state.a[0] = 0;
+    state.x[1] = 0.52; state.y[1] = 0.5;  state.a[1] = Math.PI;
+
+    nematic.step(state, { speed: 0, noise: 0, r: 0.1 });
+
+    const kept = Math.abs(Math.atan2(Math.sin(state.a[0]), Math.cos(state.a[0]))) < 1e-6;
+    const opposed = Math.abs(Math.abs(Math.atan2(Math.sin(state.a[1] - Math.PI),
+                                                 Math.cos(state.a[1] - Math.PI)))) < 1e-6;
+    ok('agents head to head each keep their own direction', kept && opposed,
+       `${state.a[0].toFixed(4)}, ${state.a[1].toFixed(4)}`);
+  }
+}
+
+// ─── MIPS ───────────────────────────────────────────────────────────────
+
+{
+  const mips = byId('mips');
+  ok('mips is registered', mips.id === 'mips');
+
+  /* NOT tested here: that this model separates into phases.
+   *
+   * It does not, at any setting reachable from the interface, and the
+   * measurements are unambiguous. The mean number of neighbours within 3σ
+   * comes out at 18.1 against 17.9 for blind walks — identical, and
+   * reproducible to a tenth across runs — over a sweep of density (φ from
+   * 0.28 to 0.63), repulsion strength (A from 0.006 to 0.05) and persistence
+   * (ℓ_p from 1σ to 1000σ). The flock stays homogeneous.
+   *
+   * One earlier version of this test claimed success on the fraction of
+   * agents in the largest connected cluster, 95% against 36%. That was an
+   * artefact: at this density the linkage sits on a percolation threshold,
+   * where connectivity swings enormously without the structure changing at
+   * all — two *blind* control runs gave 36% and 69%. The measure said nothing
+   * about aggregation.
+   *
+   * The likely reason is the size of the system, and it is not something a
+   * parameter can fix: the box is one unit across and σ is 0.03, so the
+   * domain is about thirty diameters wide, where the MIPS literature works
+   * with hundreds. A critical nucleus does not fit in thirty.
+   *
+   * So what is asserted below is only what the code actually does: a
+   * reciprocal short-range repulsion, no interaction of orientation, and an
+   * exact reduction to the blind model when the repulsion is switched off.
+   */
+
+  /* No interaction of orientation at all, so no polarisation can build up —
+   * this is what separates the mechanism from every other model here. */
+  {
+    const state = new State(500);
+    for (let k = 0; k < 1500; k++) {
+      mips.step(state, { speed: 0.006, noise: 0.04, sigma: 0.03, push: 0.02 });
+    }
+    ok('mips never polarises', polarisation(state) < 0.25, polarisation(state).toFixed(3));
+  }
+
+  /* Switch the repulsion off and it is the blind model exactly — asserted bit
+   * for bit, from a shared initial state and with the noise off so that both
+   * models are deterministic.
+   *
+   * The obvious version of this test compares cluster sizes between the two,
+   * and it does not work: with the noise on, the two runs draw different
+   * random numbers, and the largest-cluster measure sits near a percolation
+   * threshold where it swings wildly between realisations — two blind runs
+   * gave 36% and 19% of the flock in their largest cluster. Statistics that
+   * noisy cannot support an equality claim, so the equality is tested where
+   * it is exact instead. */
+  {
+    const zeroed = new State(60);
+    const blind = new State(60);
+    blind.x.set(zeroed.x);
+    blind.y.set(zeroed.y);
+    blind.a.set(zeroed.a);
+
+    for (let k = 0; k < 200; k++) {
+      mips.step(zeroed, { speed: 0.006, noise: 0, sigma: 0.03, push: 0 });
+      byId('blind').step(blind, { speed: 0.006, noise: 0 });
+    }
+
+    const identical = [...zeroed.x].every((v, i) => v === blind.x[i])
+                   && [...zeroed.y].every((v, i) => v === blind.y[i])
+                   && [...zeroed.a].every((v, i) => v === blind.a[i]);
+
+    ok('zero push reduces to the blind model exactly', identical);
+  }
+
+  /* Two agents on top of each other must push apart, not overlap for ever. */
+  {
+    const state = new State(2);
+    state.x[0] = 0.5;   state.y[0] = 0.5;  state.a[0] = 0;
+    state.x[1] = 0.505; state.y[1] = 0.5;  state.a[1] = 0;
+
+    const p = { speed: 0, noise: 0, sigma: 0.04, push: 0.004 };
+    mips.step(state, p);
+
+    let gap = state.x[1] - state.x[0];
+    gap -= Math.round(gap);
+    ok('overlapping agents push apart', gap > 0.005, gap.toFixed(5));
+  }
+}
+
+// ─── colour follows the heading ─────────────────────────────────────────
+
+{
+  const canvas = document.getElementById('probe');
+  const renderer = new Renderer(canvas);
+  renderer.size = 400;
+  renderer.dark = true;
+  const ctx = canvas.getContext('2d');
+
+  /* Mean colour of the whole canvas, background included. One agent at the
+   * centre is enough to move it, and which channel moves says which hue was
+   * used. */
+  const meanChannels = () => {
+    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+    let r = 0, g = 0, b = 0;
+    for (let i = 0; i < data.length; i += 4) { r += data[i]; g += data[i + 1]; b += data[i + 2]; }
+    const n = data.length / 4;
+    return [r / n, g / n, b / n];
+  };
+
+  const state = new State(1);
+  state.x[0] = 0.5;
+  state.y[0] = 0.5;
+
+  /* Heading 0 is hue 0: red. */
+  state.a[0] = 0;
+  renderer.draw(state);
+  const red = meanChannels();
+  ok('heading 0 paints red', red[0] > red[1] && red[0] > red[2],
+     red.map((c) => c.toFixed(3)).join(', '));
+
+  /* Two thirds of a turn is hue 240: blue. */
+  state.a[0] = (4 * Math.PI) / 3;
+  renderer.draw(state);
+  const blue = meanChannels();
+  ok('heading 4pi/3 paints blue', blue[2] > blue[0] && blue[2] > blue[1],
+     blue.map((c) => c.toFixed(3)).join(', '));
+
+  /* A third of a turn is hue 120: green. */
+  state.a[0] = (2 * Math.PI) / 3;
+  renderer.draw(state);
+  const green = meanChannels();
+  ok('heading 2pi/3 paints green', green[1] > green[0] && green[1] > green[2],
+     green.map((c) => c.toFixed(3)).join(', '));
+
+  /* Headings are never normalised by the models, so the renderer has to cope
+   * with one that has wound several turns past 2pi — and give the same colour
+   * as its equivalent inside the range. */
+  state.a[0] = 0;
+  renderer.draw(state);
+  const base = meanChannels();
+  state.a[0] = 6 * Math.PI;
+  renderer.draw(state);
+  const wound = meanChannels();
+  ok('a heading wound past 2pi gives the same colour',
+     Math.abs(base[0] - wound[0]) < 0.01 && Math.abs(base[2] - wound[2]) < 0.01,
+     `${base.map((c) => c.toFixed(2))} vs ${wound.map((c) => c.toFixed(2))}`);
+
+  state.a[0] = -Math.PI / 2;
+  renderer.draw(state);
+  ok('a negative heading paints something', meanChannels().some((c) => c > 0.001));
+}
+
 // ─── registry contract ──────────────────────────────────────────────────
 
 {
@@ -582,6 +885,15 @@ const ok = (label, condition, detail = '') =>
         && Number.isFinite(p.value) && Number.isInteger(p.decimals);
       ok(`${m.id}/${p.key}: descriptor complete`, complete, JSON.stringify(p));
       ok(`${m.id}/${p.key}: default within bounds`, p.value >= p.min && p.value <= p.max);
+
+      /* The default must land on a step of the slider, or the browser snaps
+       * it to the nearest one and the model runs with a value its own
+       * descriptor never declared. Caught here after exactly that happened to
+       * Rrep: a default of 0.025 on a step of 0.002 became 0.026. */
+      const steps = (p.value - p.min) / p.step;
+      ok(`${m.id}/${p.key}: default lands on a slider step`,
+         Math.abs(steps - Math.round(steps)) < 1e-6,
+         `(${p.value} - ${p.min}) / ${p.step} = ${steps}`);
     }
 
     /* A model must not claim a key that the general panel already owns:

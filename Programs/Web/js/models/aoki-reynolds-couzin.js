@@ -66,10 +66,16 @@ export default {
   illustration: 'Aoki-Reynolds-Couzin',
 
   params: [
-    { key: 'rrep', label: '<i>R</i><sub>rep</sub>', min: 0, max: 0.5, step: 0.005, value: 0.025, decimals: 3 },
+    /* Rrep stops at 0.1: past that the repulsion zone swallows the two
+     * others, every neighbour crowds every other, and the mean bearing of a
+     * dozen neighbours spread all round points nowhere in particular — the
+     * rule stops being avoidance and becomes noise. */
+    { key: 'rrep', label: '<i>R</i><sub>rep</sub>', min: 0, max: 0.1, step: 0.001, value: 0.025, decimals: 3 },
     { key: 'ral', label: '<i>R</i><sub>al</sub>', min: 0, max: 0.5, step: 0.005, value: 0.125, decimals: 3 },
     { key: 'ratt', label: '<i>R</i><sub>att</sub>', min: 0, max: 0.5, step: 0.005, value: 0.25, decimals: 3 },
-    { key: 'alpha', label: '<i>α</i>', min: 0, max: Math.PI / 2, step: 0.01, value: 0.393, decimals: 2 },
+    /* 0.39 rather than the reference's π/8 = 0.3927: the default has to sit
+     * on a step of the slider, and it is displayed to two decimals anyway. */
+    { key: 'alpha', label: '<i>α</i>', min: 0, max: Math.PI / 2, step: 0.01, value: 0.39, decimals: 2 },
   ],
 
   /* The three zones are concentric, so their radii must stay ordered:

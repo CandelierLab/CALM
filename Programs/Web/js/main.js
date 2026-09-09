@@ -26,13 +26,11 @@ const canvas = document.getElementById('view');
 const renderer = new Renderer(canvas);
 
 let state = new State(100);
-renderer.refreshColors(state);
 
 const ui = new UI({
 
   onShuffle() {
     state.shuffle();
-    renderer.refreshColors(state);
   },
 
   onParam(key, value) {
@@ -41,7 +39,6 @@ const ui = new UI({
      * count is the exception: it changes the size of the state. */
     if (key === 'count') {
       state.resize(Math.round(value));
-      renderer.refreshColors(state);
     }
   },
 

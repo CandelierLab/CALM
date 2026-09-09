@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- CALM — Topological agents: the neighbourhood is counted, not measured -->
+<svg xmlns="http://www.w3.org/2000/svg" width="214.70172mm" height="100mm"
+     viewBox="0 0 214.70172 100" version="1.1">
+  <defs>
+    <path id="tri" d="M 5.5,0 L -3.5,3.4 L -3.5,-3.4 Z"/>
+  </defs>
+    <path d="M 55,50 L 45,39" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 55,50 L 67,44" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 55,50 L 58,63" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 55,50 L 41,59" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <use href="#tri" transform="translate(45.0,39.0) rotate(40)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(67.0,44.0) rotate(110)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(58.0,63.0) rotate(180)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(41.0,59.0) rotate(250)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(24.0,26.0) rotate(20)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(86.0,74.0) rotate(75)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(27.0,76.0) rotate(130)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(84.0,22.0) rotate(185)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(55.0,50.0) rotate(0)" fill="#0088aa"/>
+    <path d="M 162,50 L 139,33" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 162,50 L 187,40" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 162,50 L 171,74" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <path d="M 162,50 L 136,66" stroke="#0088aa" stroke-width="0.9" fill="none" opacity="0.75"/>
+    <use href="#tri" transform="translate(139.0,33.0) rotate(40)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(187.0,40.0) rotate(110)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(171.0,74.0) rotate(180)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(136.0,66.0) rotate(250)" fill="#ffffff"/>
+    <use href="#tri" transform="translate(203.0,86.0) rotate(20)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(122.0,15.0) rotate(75)" fill="#7a7a7a"/>
+    <use href="#tri" transform="translate(162.0,50.0) rotate(0)" fill="#0088aa"/>
+    <text x="55" y="97" font-family="serif" font-style="italic" font-size="9" text-anchor="middle" fill="#ffffff">k = 4</text>
+    <text x="162" y="97" font-family="serif" font-style="italic" font-size="9" text-anchor="middle" fill="#ffffff">k = 4</text>
+    <path d="M 108,20 L 108,80" stroke="#b3b3b3" stroke-width="0.7" stroke-dasharray="3,3" fill="none"/>
+</svg>

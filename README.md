@@ -55,7 +55,7 @@ selenium est dans l'environnement du site du LJP :
 
 ## Modèles
 
-Quatre modèles sont disponibles :
+Sept modèles sont disponibles :
 
 - **Agents aveugles** — ils ne perçoivent rien et suivent des marches
   aléatoires indépendantes. C'est le modèle nul de la collection, celui qui
@@ -64,6 +64,14 @@ Quatre modèles sont disponibles :
   dans un rayon *r*. L'alignement est leur seule interaction, et il suffit à
   faire émerger un mouvement d'ensemble. Montez *r*, et le groupe s'ordonne ;
   montez le bruit de réorientation, et l'ordre se défait.
+- **Agents topologiques** — ils s'alignent sur leurs *k* plus proches voisins,
+  quelle que soit la distance : le voisinage se compte, il ne se mesure pas.
+  C'est ce que font les étourneaux (Ballerini *et al.*, *PNAS* **105**, 1232,
+  2008). Comparez avec Vicsek en réduisant le nombre d'agents : le voisinage
+  métrique se vide et l'ordre s'effondre, le topologique ne se vide jamais.
+- **Agents nématiques** — des bâtonnets sans tête ni queue, alignés sur un
+  *axe* et non une direction. Il en résulte des voies parcourues dans les deux
+  sens : le groupe est ordonné alors que sa polarisation reste nulle.
 - **Agents d'Aoki-Reynolds-Couzin** — trois zones concentriques : répulsion,
   alignement, attraction, plus un secteur aveugle derrière. La réorientation
   étant plafonnée à chaque pas, le groupe peut se mettre à tourner en tore.
@@ -71,6 +79,13 @@ Quatre modèles sont disponibles :
   dans un cône de vision, sans aucun alignement des vitesses. Le cône n'étant
   pas réciproque, on obtient des agrégats, des rondes et des files à meneurs.
   D'après Barberis & Peruani, *Phys. Rev. Lett.* **117**, 248001 (2016).
+- **Particules actives répulsives (MIPS)** — aucune interaction d'orientation,
+  seulement une répulsion entre corps. ⚠️ Ce modèle ne produit pas la
+  séparation de phase dont il porte le nom : voir la réserve dans `AGENTS.md`.
+
+Les agents sont **colorés selon leur orientation**, en direct : un groupe
+polarisé vire à une seule couleur, une phase nématique montre deux teintes
+opposées en voies séparées, un gaz désordonné reste un confetti.
 
 Les perceptrons existent dans la version Qt archivée et restent à porter.
 Chaque modèle est un fichier de

@@ -484,19 +484,31 @@ def registry_suite(driver, base, r):
 
     r.check("[registry] ARC radii start ordered", ordered(radii()), str(radii()))
 
-    # Push the innermost radius past the two outer ones.
-    slide("rrep", 0.4)
+    r.check("[registry] Rrep is capped at 0.1",
+            js("return document.getElementById('param-rrep').max") == "0.1",
+            js("return document.getElementById('param-rrep').max"))
+
+    # Rrep tops out at 0.1, below the others' default, so bring them within
+    # its reach first — otherwise raising it to the maximum crosses nothing
+    # and the constraint has nothing to do.
+    slide("ratt", 0.06)
+    slide("ral", 0.05)
+    time.sleep(0.4)
+    r.check("[registry] radii ordered after lowering the outer two",
+            ordered(radii()), str(radii()))
+
+    slide("rrep", 0.1)
     time.sleep(0.4)
     pushed = radii()
     r.check("[registry] raising Rrep carries Ral and Ratt along",
-            pushed == [0.4, 0.4, 0.4], str(pushed))
+            pushed == [0.1, 0.1, 0.1], str(pushed))
 
     # Pull the outermost down below the others.
-    slide("ratt", 0.1)
+    slide("ratt", 0.04)
     time.sleep(0.4)
     pulled = radii()
     r.check("[registry] lowering Ratt carries Ral and Rrep down",
-            pulled == [0.1, 0.1, 0.1], str(pulled))
+            pulled == [0.04, 0.04, 0.04], str(pulled))
 
     # A middle move must push in one direction only.
     slide("ratt", 0.45)
