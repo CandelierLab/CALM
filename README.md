@@ -5,7 +5,8 @@ a model, move the sliders, and the simulation rearranges itself under your
 hand.
 
 The software runs in the browser, with no dependency and no build step:
-[`Programs/Web`](Programs/Web).
+[`Programs/Web`](Programs/Web). It is online at
+**<https://calm.labojeanperrin.fr/>**.
 
 The PyQt5 desktop version this one was ported from is archived on the
 **`desktop-pyqt5`** branch:
@@ -111,34 +112,9 @@ touch is the whole mechanism.
 The 3D view builds on three.js, vendored in `Programs/Web/vendor/`: nothing is
 loaded from a CDN, neither for the tests nor in production.
 
-The perceptrons exist in the archived Qt version and are still to be ported.
 Each model is one file in
 [`Programs/Web/js/models/`](Programs/Web/js/models) plus a line in the
 registry; the interface follows from that.
-
-## Deployment
-
-The software is online: **<https://calm.labojeanperrin.fr/>**
-
-```bash
-Programs/Web/deploy.sh              # tests, then upload
-Programs/Web/deploy.sh --dry-run    # what would go, changing nothing
-Programs/Web/deploy.sh --no-tests   # upload alone
-```
-
-The site is entirely static: deployment is a copy of `Programs/Web`, with no
-build and no server-side Python. What is sent is byte for byte what was tested.
-The script then checks that the page and each of its modules answer.
-
-### Draft models
-
-A model marked `draft: true` in its file stays in the repository and in the
-tests, but does not appear in the selector on the public site. Adding `?draft`
-to the URL brings them back, which is what makes it possible to check one
-directly online.
-
-No model is a draft today: **MIPS** was the last one, and it has been published
-since it started producing the phase separation it is named after.
 
 ## Licence
 

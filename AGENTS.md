@@ -1,597 +1,607 @@
-# CALM — architecture vérifiée
+# CALM — verified architecture
 
-Ce fichier décrit ce qui **est**, vérifié sur la machine. Les intentions sont
-dans le README ; les décisions actées sont rappelées en fin de document.
+This file describes what **is**, checked on the machine. The intentions are in
+the README; the decisions taken are recalled at the end of the document.
 
-## Le nom
+## The name
 
-CALM, pour *Collective Animal Locomotion Models*. Le logiciel s'appelait COCOA
-(*COmportement COllectif Artificiel*).
+CALM, for *Collective Animal Locomotion Models*. The software used to be called
+COCOA (*COmportement COllectif Artificiel*).
 
-Renommage effectué : dépôt GitHub `CandelierLab/CALM`, dossier local
-`Vulgarisation/CALM`, et `origin` recalé sur la nouvelle URL.
+The rename is done: GitHub repository `CandelierLab/CALM`, local directory
+`Vulgarisation/CALM`, and `origin` repointed at the new URL.
 
-## Où est quoi
+## Where things are
 
-`Programs/Web/` est le logiciel. La version de bureau PyQt5 dont il est le
-portage — `Programs/Python/` : `main.py`, `Window.py`, `Animation.py`,
-`Engine.py` — est archivée sur la branche **`desktop-pyqt5`** et n'est plus
-dans l'arbre de `master`.
+`Programs/Web/` is the software. The PyQt5 desktop version it was ported from —
+`Programs/Python/`: `main.py`, `Window.py`, `Animation.py`, `Engine.py` — is
+archived on the **`desktop-pyqt5`** branch and is no longer in the `master`
+tree.
 
-Elle reste la référence des modèles, et c'est là qu'il faut aller chercher les
-perceptrons :
+It remains the reference for the models, and it is where the perceptrons have
+to be fetched from:
 
 ```bash
 git show desktop-pyqt5:Programs/Python/Engine.py
 ```
 
-Cette version n'utilisait **pas** lib-anim : `Animation.py` embarque sa propre
-couche Qt (`item`, `polygon`, `Animation2d`), un ancêtre de lib-anim figé sur
-PyQt5, dont les items héritent directement de `QGraphicsPolygonItem`. C'est
-pourquoi le portage web est parti de zéro plutôt que d'un backend lib-anim.
+That version did **not** use lib-anim: `Animation.py` carries its own Qt layer
+(`item`, `polygon`, `Animation2d`), an ancestor of lib-anim frozen on PyQt5,
+whose items inherit directly from `QGraphicsPolygonItem`. That is why the web
+port started from scratch rather than from a lib-anim backend.
 
 ## Programs/Web
 
-Aucune dépendance, aucune étape de compilation, aucun `node_modules` : des
-modules ES chargés tels quels par le navigateur. Ce qui est testé en local est
-littéralement ce qui sera déployé.
+No dependency, no build step, no `node_modules`: ES modules loaded as they are
+by the browser. What is tested locally is literally what will be deployed.
 
 ```
-index.html            le squelette du DOM ; le contenu est généré
-serve.py              serveur de développement, sans mise en cache
-css/calm.css          thèmes clair et sombre en variables CSS
-js/main.js            point d'entrée et boucle d'animation
-js/engine.js          l'état des agents et le déplacement sur le tore
-js/renderer2d.js      rendu Canvas 2D
-js/renderer3d.js      rendu WebGL (three.js)
-js/colormap.js        la couleur d'une orientation, en 2D et en 3D
-js/ui.js              construction de l'interface depuis le registre
-js/common.js          paramètres communs à tous les modèles
-js/i18n.js            chaînes bilingues de l'interface
-js/models/index.js    le registre
-js/models/blind.js    les agents aveugles
-js/models/vicsek.js   les agents de Vicsek
-js/models/mips.js     répulsion stérique, sous-pas
-js/models/topological.js   alignement sur les k plus proches
-js/models/nematic.js  alignement sur un axe
-js/models/aoki-reynolds-couzin.js   les trois zones concentriques
-js/models/peruani.js  attraction dans un cône de vision
-img/                  illustrations, une paire clair/sombre par modèle
-vendor/three.min.js   three.js r160, build UMD
-tests/                les suites de tests
+index.html            the DOM skeleton; the content is generated
+serve.py              development server, without caching
+css/calm.css          light and dark themes as CSS variables
+js/main.js            entry point and animation loop
+js/engine.js          the state of the agents and motion on the torus
+js/renderer2d.js      Canvas 2D rendering
+js/renderer3d.js      WebGL rendering (three.js)
+js/colormap.js        the colour of an orientation, in 2D and in 3D
+js/ui.js              interface construction from the registry
+js/common.js          parameters common to every model
+js/i18n.js            bilingual interface strings
+js/models/index.js    the registry
+js/models/blind.js    the blind agents
+js/models/vicsek.js   the Vicsek agents
+js/models/mips.js     steric repulsion, sub-steps
+js/models/topological.js   alignment on the k nearest
+js/models/nematic.js  alignment on an axis
+js/models/aoki-reynolds-couzin.js   the three concentric zones
+js/models/peruani.js  attraction inside a vision cone
+img/                  illustrations, one light/dark pair per model
+vendor/three.min.js   three.js r160, UMD build
+tests/                the test suites
 ```
 
-### Le registre de modèles
+### The model registry
 
-C'est le point d'architecture central. Un modèle est un objet qui se décrit
-lui-même : nom bilingue, description bilingue, illustration, liste de
-descripteurs de paramètres, et une fonction `step`. Le `<select>`,
-l'illustration, le texte et les curseurs sont **générés** à partir de cette
-liste ; `ui.js` ne nomme aucun modèle.
+This is the central architectural point. A model is an object that describes
+itself: bilingual name, bilingual description, illustration, list of parameter
+descriptors, and a `step` function. The `<select>`, the illustration, the text
+and the sliders are all **generated** from that list; `ui.js` names no model.
 
-Ajouter un modèle = un fichier dans `js/models/` et une ligne dans
-`js/models/index.js`. Aucune modification de l'interface, de la boucle ou du
-rendu. Vérifié en pratique : l'ajout de Vicsek n'a touché ni `ui.js`, ni
-`main.js`, ni `renderer.js`.
+Adding a model = one file in `js/models/` and one line in
+`js/models/index.js`. No change to the interface, the loop or the rendering.
+Verified in practice: adding Vicsek touched neither `ui.js`, nor `main.js`, nor
+`renderer.js`.
 
-Le contrat exact est documenté en tête de `js/models/index.js`, et vérifié pour
-chaque modèle du registre par les tests unitaires : un descripteur incomplet
-échoue au test au lieu de produire un panneau vide. La suite d'interface lit
-elle aussi le registre et vérifie que le `<select>` en est exactement le reflet,
-plutôt que de comparer à une liste écrite en dur qui vieillirait mal.
+The exact contract is documented at the top of `js/models/index.js`, and
+checked for every model of the registry by the unit tests: an incomplete
+descriptor fails a test instead of producing an empty panel. The interface
+suite reads the registry too and checks that the `<select>` is exactly its
+reflection, rather than comparing against a hard-coded list that would age
+badly.
 
-Un modèle peut en outre déclarer `constrain(p, key)`, appelée après chaque
-mouvement de curseur, qui rend les corrections à appliquer aux autres
-paramètres. C'est ainsi qu'Aoki-Reynolds-Couzin impose ses rayons emboîtés
-sans que `ui.js` sache ce qu'est un rayon. Le curseur que l'on tient gagne
-toujours, les autres s'écartent — plus prévisible qu'un curseur qui se bloque
-sous la main. La version Qt faisait un mélange des deux (elle bloquait Rrep
-contre Ral mais poussait Ral contre Rrep) ; c'est harmonisé.
+A model may also declare `constrain(p, key)`, called after every slider move,
+which returns the corrections to apply to the other parameters. That is how
+Aoki-Reynolds-Couzin enforces its nested radii without `ui.js` knowing what a
+radius is. The slider under the hand always wins and the others give way — more
+predictable than a slider that jams under the finger. The Qt version did a
+mixture of the two (it blocked Rrep against Ral but pushed Ral against Rrep);
+that is now harmonised.
 
-### Deux dimensions, un seul moteur
+A descriptor may also declare `dim3`, whose fields override its own when the 3D
+view is on. MIPS is the case that forced it: σ is the diameter of a body, so
+the same number is an *area* fraction in 2D and a *volume* fraction in 3D, and
+one range cannot serve both. This is what makes the panel worth rebuilding on a
+dimension switch, which it did not use to be — with the values in hand carried
+over and clamped into whatever the new range allows.
 
-L'état est **générique en dimension**, et c'est ce qui a façonné le reste. Une
-orientation est un **vecteur unitaire**, plus un angle : la seule
-représentation qui vaille dans les deux dimensions — et celle que les modèles
-utilisaient déjà sans le dire, puisqu'ils accumulaient des cosinus et des sinus
-avant d'appeler `atan2`. Sommer des vecteurs unitaires puis normaliser est la
-même opération sans le détour, et c'est moins cher (`atan2` n'est pas gratuit).
+And a model may declare `shape`, naming the parameter that gives the diameter
+at which its agents should be drawn as bodies — discs in 2D, spheres in 3D —
+rather than as arrows. The renderers stay ignorant of models: they are handed a
+length, exactly the way they are handed a theme.
 
-Positions et directions sont stockées entrelacées — x,y[,z] par agent — ce qui
-garde les coordonnées d'un agent sur la même ligne de cache et donne à three.js
-un tampon directement lisible.
+### Two dimensions, one engine
 
-Ce que le passage en vectoriel a demandé, modèle par modèle : rien du tout pour
-les agents aveugles, une transposition mécanique pour cinq autres, et un vrai
-changement de méthode pour un seul. L'alignement **nématique** reposait sur le
-doublement d'angle, qui n'existe qu'en 2D ; en dimension quelconque le
-directeur est le vecteur propre principal du tenseur d'ordre Σ u⊗u, obtenu par
-itération de puissance. Le tenseur est aveugle à la distinction tête/queue
-parce que u et −u donnent le même produit extérieur — « modulo π » n'est plus
-une opération sur un nombre mais une propriété d'un tenseur.
+The state is **dimension-generic**, and that is what shaped the rest. An
+orientation is a **unit vector**, not an angle: the only representation that
+works in both dimensions — and the one the models were already using without
+saying so, since they accumulated cosines and sines before calling `atan2`.
+Summing unit vectors then normalising is the same operation without the detour,
+and it costs less (`atan2` is not free).
 
-Deux points de méthode qui se paient comptant si on les oublie :
+Positions and directions are stored interleaved — x,y[,z] per agent — which
+keeps an agent's coordinates on the same cache line and hands three.js a buffer
+it can read directly.
 
-- **Le bruit angulaire doit être isotrope.** Une rotation d'angle gaussien dans
-  un plan tiré au hasard contenant le cap : en 2D il n'y a qu'un plan et cela
-  redonne le `a += σ·N(0,1)` de la référence, en 3D cela explore la sphère
-  uniformément. Perturber des angles sphériques encombrerait les pôles, et une
-  nuée d'agents aveugles dériverait vers l'axe z. Un test le mesure.
-- **Il faut renormaliser.** La rotation est exacte sur le papier, mais ce sont
-  des flottants 32 bits et l'erreur s'accumule : sur quelques milliers de pas
-  la norme dérive assez pour que la vitesse change lentement. `move()` et
-  `turnTowards()` renormalisent tous deux.
+What going vectorial demanded, model by model: nothing at all for the blind
+agents, a mechanical transposition for five others, and a genuine change of
+method for exactly one. **Nematic** alignment rested on angle doubling, which
+only exists in 2D; in any dimension the director is the principal eigenvector
+of the order tensor Σ u⊗u, obtained by power iteration. The tensor is blind to
+the head/tail distinction because u and −u give the same outer product —
+"modulo π" is no longer an operation on a number but a property of a tensor.
 
-### Le pas de temps
+Two points of method that are paid for on the spot if forgotten:
 
-La simulation avance à 25 Hz — un pas toutes les 40 ms — via un accumulateur
-dans `main.js`, tandis que le dessin suit `requestAnimationFrame`.
+- **The angular noise has to be isotropic.** A rotation by a Gaussian angle in
+  a randomly drawn plane containing the heading: in 2D there is only one such
+  plane and this gives back the reference's `a += σ·N(0,1)`, in 3D it explores
+  the sphere uniformly. Perturbing spherical angles would crowd the poles, and
+  a flock of blind agents would drift towards the z axis. A test measures it.
+- **Renormalisation is needed.** The rotation is exact on paper, but these are
+  32-bit floats and the error accumulates: over a few thousand steps the norm
+  drifts far enough for the speed to change slowly. `move()` and
+  `turnTowards()` both renormalise.
 
-Les deux sont délibérément découplés : `requestAnimationFrame` tire à 60 Hz, ou
-120 Hz sur certains écrans, et un pas par image ferait avancer les agents une
-fois et demie plus vite sur un bon moniteur. Le temps crédité à une image est
-plafonné à 200 ms, sinon revenir sur un onglet en arrière-plan rejouerait
-d'un coup tous les pas manqués.
+### The time step
 
-### Les deux vues
+The simulation advances at 25 Hz — one step every 40 ms — through an
+accumulator in `main.js`, while the drawing follows `requestAnimationFrame`.
 
-Le sélecteur `2D`/`3D` bascule **la vue et la simulation ensemble** : les
-modèles tournent dans la dimension que l'état porte, donc c'est un seul
-changement. Les agents sont redistribués au passage — une configuration 2D
-relevée en 3D tiendrait dans un plan unique, ce qui se lit comme un bug et met
-longtemps à se défaire.
+The two are deliberately decoupled: `requestAnimationFrame` fires at 60 Hz, or
+120 Hz on some screens, and one step per frame would make the agents advance
+half again as fast on a good monitor. The time credited to a frame is capped at
+200 ms, or coming back to a backgrounded tab would replay every missed step at
+once.
 
-Il y a **deux éléments `<canvas>`**, un seul affiché à la fois : un canvas
-porte soit un contexte 2D, soit un contexte WebGL, jamais les deux. Ce n'est
-donc pas un mode sur un même élément.
+### The two views
 
-`vendor/three.min.js` est **embarqué, pas chargé depuis un CDN** : les tests
-tournent hors ligne et le sous-domaine déployé n'a aucune dépendance tierce à
-l'exécution. C'est la build UMD de r160, la dernière que cdnjs propose sous
-cette forme ; elle affiche un avertissement de dépréciation et fonctionne. Le
-contrôle de caméra (glisser pour tourner, molette pour zoomer) est écrit à la
-main plutôt que d'embarquer `OrbitControls`, qui est livré à part : une
-vingtaine de lignes contre un second fichier.
+The `2D`/`3D` selector switches **the view and the simulation together**: the
+models run in whatever dimension the state carries, so it is a single change.
+The agents are redistributed in the process — a 2D configuration lifted into 3D
+would sit in a single plane, which reads as a bug and takes a long time to
+undo.
 
-La vue 3D tourne lentement d'elle-même jusqu'au premier glissement. Une
-projection immobile est très difficile à lire ; le mouvement fournit la
-parallaxe qui rend la profondeur intelligible.
+There are **two `<canvas>` elements**, only one shown at a time: a canvas holds
+either a 2D context or a WebGL one, never both. So this is not a mode on a
+single element.
 
-### La couleur
+`vendor/three.min.js` is **vendored, not loaded from a CDN**: the tests run
+offline and the deployed subdomain has no third-party dependency at runtime. It
+is the UMD build of r160, the last one cdnjs offers in that form; it prints a
+deprecation warning and works. The camera control (drag to turn, wheel to zoom)
+is written by hand rather than vendoring `OrbitControls`, which ships
+separately: some twenty lines against a second file.
 
-Les deux vues encodent **la même chose, l'orientation**, sur la même base HSV.
-Une nuée polarisée vire à une seule couleur, une nuée désordonnée reste un
-confetti, et la phase nématique montre deux teintes opposées sur la roue — ce
-qui est précisément la lecture qui la rend reconnaissable.
+The 3D view turns slowly on its own until the first drag. A still projection is
+very hard to read; the motion supplies the parallax that makes depth legible.
 
-En 2D une orientation est un angle et la roue suffit. En 3D elle a deux degrés
-de liberté contre un pour la roue, donc l'élévation passe sur les deux autres
-axes de HSV, qui est lui-même un cône : cap horizontal → teinte pure, vers le
-haut → la saturation tombe vers le blanc, vers le bas → la valeur tombe vers le
-noir. Le mélange s'arrête avant le blanc et le noir purs pour qu'il reste
-toujours un peu de teinte et qu'un agent vertical ne disparaisse pas dans le
-fond de son propre thème.
+### Colour
 
-Ce qui est assumé : l'élévation n'est pas perceptuellement uniforme face à
-l'azimut, et les pôles écrasent la teinte — un agent qui monte tout droit est
-presque blanc quel que soit son azimut. C'est correct (l'azimut n'y est pas
-défini) mais la teinte n'y informe plus.
+Both views encode **the same thing, the orientation**, on the same HSV basis. A
+polarised flock turns a single colour, a disordered one stays confetti, and the
+nematic phase shows two opposite hues on the wheel — which is precisely the
+reading that makes it recognisable.
 
-> Une version antérieure colorait la 3D par la coordonnée z avec la colormap
-> cyclique `colorwheel` de colorcet, choisie parce que z vit sur un tore. Elle
-> a été retirée quand les deux vues ont été unifiées sur l'orientation ; la
-> table des 256 couleurs est récupérable dans l'historique git si la profondeur
-> redevient utile.
+In 2D an orientation is an angle and the wheel is enough. In 3D it has two
+degrees of freedom against one for the wheel, so the elevation goes onto the
+other two axes of HSV, which is itself a cone: horizontal heading → pure hue,
+upwards → the saturation falls towards white, downwards → the value falls
+towards black. The blend stops short of pure white and pure black so that some
+hue always remains and a vertical agent does not vanish into the background of
+its own theme.
 
-### Voisinage
+What is accepted: the elevation is not perceptually uniform against the
+azimuth, and the poles crush the hue — an agent going straight up is nearly
+white whatever its azimuth. That is correct (the azimuth is undefined there)
+but the hue no longer informs.
 
-`Engine.py` cherche les voisins en testant toutes les paires, ce qui est en
-O(N²) : acceptable à la centaine d'agents de la version de bureau, pas au
-millier que le curseur autorise.
+> An earlier version coloured the 3D view by the z coordinate with colorcet's
+> cyclic `colorwheel` colormap, chosen because z lives on a torus. It was
+> dropped when the two views were unified on orientation; the table of 256
+> colours is recoverable from the git history should depth become useful again.
 
-`NeighbourGrid` dans `engine.js` découpe la boîte en cellules jamais plus
-petites que le rayon d'interaction ; les voisins d'un agent sont alors dans les
-3^d cellules qui l'entourent — neuf en 2D, vingt-sept en 3D. L'occupation est stockée en listes
-chaînées sur deux tableaux d'entiers, donc un pas n'alloue rien.
+### Neighbourhood
 
-Deux garde-fous dans le code : le nombre de cellules par côté est plafonné —
-64 en 2D, 16 en 3D, soit environ quatre mille cellules dans les deux cas (un
-rayon minuscule demanderait sinon une grille énorme à effacer à chaque pas, et
-il suffit que les cellules soient au moins aussi larges que le rayon) — et en
-dessous de trois cellules par côté le voisinage se replierait sur lui-même : la
-grille repasse alors en force brute.
+`Engine.py` finds neighbours by testing every pair, which is O(N²):
+acceptable at the hundred agents of the desktop version, not at the thousand
+the slider allows.
 
-Les tests comparent la grille à la force brute sur neuf rayons couvrant les
-deux régimes : **0 désaccord sur 180 944 relations de voisinage**. C'est la
-seule question qui compte pour une optimisation.
+`NeighbourGrid` in `engine.js` cuts the box into cells never smaller than the
+interaction radius; an agent's neighbours are then in the 3^d cells around it —
+nine in 2D, twenty-seven in 3D. Occupancy is stored as linked lists over two
+integer arrays, so a step allocates nothing.
 
-### Mise à jour synchrone
+Two guards in the code: the number of cells per side is capped — 64 in 2D, 16
+in 3D, about four thousand cells in both cases (a tiny radius would otherwise
+ask for a huge grid to clear on every step, and all correctness requires is
+that the cells be at least as wide as the radius) — and below three cells per
+side the neighbourhood would fold onto itself: the grid then falls back to
+brute force.
 
-`State.freezeHeadings()` rend une copie des orientations telles qu'elles
-étaient au début du pas, réutilisée d'un pas sur l'autre pour ne rien allouer.
+The tests compare the grid against brute force over nine radii covering both
+regimes: **0 disagreements over 180,944 neighbour relations**. That is the only
+question that matters for an optimisation.
 
-Tout modèle à interaction doit la lire, sans quoi un agent s'alignerait sur des
-voisins déjà mis à jour dans le même pas — une mise à jour séquentielle, qui
-est un modèle *différent* de celui de la référence. La version Python obtient
-la même chose en compilant un champ une fois par pas (`agents.compile()`).
+### Synchronous update
 
-### Géométrie
+`State.freezeHeadings()` returns a copy of the orientations as they were at the
+start of the step, reused from one step to the next so as to allocate nothing.
 
-Le domaine est le tore unité [0,1[², comme dans `Engine.py` : les positions
-s'enroulent aux deux bords, il n'y a ni paroi ni effet de bord.
+Every interacting model must read it, or an agent would align on neighbours
+already updated within the same step — a sequential update, which is a
+*different* model from the reference's. The Python version gets the same result
+by compiling a field once per step (`agents.compile()`).
 
-Deux pièges vérifiés par les tests :
+### Geometry
 
-- **le reste JavaScript garde le signe du dividende**, donc `v % 1` sur une
-  position négative reste négatif. `engine.js` utilise `((v % 1) + 1) % 1`.
-- **un agent près d'un bord est aussi près du bord opposé** et doit y être
-  dessiné : sans cela les triangles sont tranchés net au bord, ce qui se lit
-  comme un mur qui n'existe pas. `renderer.js` peint jusqu'à quatre copies
-  d'un agent de coin. C'est le seul écart assumé avec la référence Qt, qui
-  laissait les agents se faire couper.
+The domain is the unit torus [0,1[², as in `Engine.py`: positions wrap at both
+edges, there is no wall and no boundary effect.
 
-### Représentation graphique
+Two traps checked by the tests:
 
-Un triangle orienté par agent, aux proportions de la référence Qt : pointe à
-`+s` le long du cap, base de demi-largeur `s/2` à `-s/2`, avec `s = 0.011` en
-unités de boîte. La teinte vient de la position `x` au moment du brassage
-(HSV(x, 1, 1), soit HSL(x·360°, 100%, 50%)), ce qui fait démarrer le groupe en
-arc-en-ciel et donne au regard un moyen de suivre le mélange.
+- **the JavaScript remainder keeps the sign of the dividend**, so `v % 1` on a
+  negative position stays negative. `engine.js` uses `((v % 1) + 1) % 1`.
+- **an agent near an edge is also near the opposite one** and has to be drawn
+  there: without that the triangles are sliced clean at the border, which reads
+  as a wall that does not exist. `renderer.js` paints up to four copies of a
+  corner agent. This is the one accepted departure from the Qt reference, which
+  let the agents be cut.
 
-Remplissage et contour sont de la couleur de l'agent, **dans les deux
-thèmes** : le contour sert à arrondir la silhouette et à l'épaissir un peu, pas
-à la cerner d'une encre contrastée. La référence Qt cernait de noir en thème
-clair, ce qui alourdissait les agents et attirait l'œil sur les contours
-plutôt que sur le groupe. Seuls le fond et le cadre dépendent du thème.
+### Graphical representation
 
-À une centaine d'agents c'est quelques centaines d'opérations de tracé par
-image : Canvas 2D est très loin de saturer et WebGL n'apporterait qu'une
-dépendance.
+One oriented triangle per agent, in the proportions of the Qt reference: tip at
+`+s` along the heading, base of half-width `s/2` at `-s/2`, with `s = 0.011` in
+box units. The hue comes from the `x` position at the time of the shuffle
+(HSV(x, 1, 1), that is HSL(x·360°, 100%, 50%)), which starts the group as a
+rainbow and gives the eye a way to follow the mixing.
 
-### Coût d'un pas, mesuré
+Fill and stroke are the agent's own colour, **in both themes**: the stroke is
+there to round the outline and thicken it a little, not to ring it in a
+contrasting ink. The Qt reference outlined in black on the light theme, which
+made the agents read as heavy and drew the eye to the outlines rather than to
+the group. Only the background and the frame depend on the theme.
 
-Firefox sur la machine de développement, moyenne sur 100 pas, rendu exclu. Le
-budget est de 40 ms, la période de la simulation.
+At a hundred agents that is a few hundred drawing operations per frame: Canvas
+2D is very far from saturating and WebGL would bring nothing but a dependency.
 
-| Modèle | Agents | Rayon | Pas | Budget |
+### Cost of a step, measured
+
+Firefox on the development machine, averaged over 100 steps, rendering
+excluded. The budget is 40 ms, the period of the simulation.
+
+| Model | Agents | Radius | Step | Budget |
 | --- | --- | --- | --- | --- |
-| aveugles | 1000 | — | 0,10 ms | 0 % |
-| Vicsek | 600 | 0,2 (max) | 3,8 ms | 10 % |
-| Vicsek | 1000 | 0,2 (max) | 10,6 ms | 27 % |
-| Vicsek | 1500 | 0,2 (max) | 22,1 ms | 55 % |
-| Vicsek | 2000 | 0,2 (max) | 41,8 ms | **105 %** |
-| Vicsek | 2000 | 0,02 | 3,9 ms | 10 % |
+| blind | 1000 | — | 0.10 ms | 0 % |
+| Vicsek | 600 | 0.2 (max) | 3.8 ms | 10 % |
+| Vicsek | 1000 | 0.2 (max) | 10.6 ms | 27 % |
+| Vicsek | 1500 | 0.2 (max) | 22.1 ms | 55 % |
+| Vicsek | 2000 | 0.2 (max) | 41.8 ms | **105 %** |
+| Vicsek | 2000 | 0.02 | 3.9 ms | 10 % |
 
-C'est ce qui fixe le maximum du curseur à **1000 agents** (et non 2000, sa
-première valeur) : au-delà, la combinaison la plus coûteuse atteignable depuis
-l'interface dépasse le budget et l'animation décroche. Les deux dernières
-lignes montrent aussi que le facteur limitant à grand rayon est le nombre de
-voisins réels, pas l'algorithme — la grille, elle, apporte un facteur dix.
+This is what sets the slider maximum at **1000 agents** (and not 2000, its
+first value): beyond that, the most expensive combination reachable from the
+interface exceeds the budget and the animation stalls. The last two rows also
+show that the limiting factor at a wide radius is the number of actual
+neighbours, not the algorithm — the grid, for its part, brings a factor of ten.
 
 ## Tests
 
-`Programs/Web/tests/run.py` pilote Firefox via selenium. **266 assertions** au
-dernier passage. La suite complète prend maintenant plus de deux minutes,
-l'essentiel étant les tests de physique qui font tourner des milliers de pas ;
-`--only unit` en est la part lente.
+`Programs/Web/tests/run.py` drives Firefox through selenium. **426 assertions**
+at the last run. The full suite now takes more than two minutes, most of it the
+physics tests which put thousands of steps through; `--only unit` is the slow
+part of it.
 
-| Suite | `--only` | Ce qu'elle couvre |
+| Suite | `--only` | What it covers |
 | --- | --- | --- |
-| `tests/unit.html` | `unit` | **en 2D et en 3D** : enroulement du tore, redimensionnement, bascule de dimension, `setDirection`/`turnTowards`, isotropie du bruit, équivalence grille / force brute, recherche des k plus proches contre balayage exhaustif, physique des sept modèles, les deux bases de couleur, contrat du registre |
-| `registry_suite` | `registry` | le `<select>` et le panneau **générés** : le sélecteur lu depuis le registre, la bascule entre les quatre modèles, la régénération des curseurs, les rayons emboîtés d'ARC, la mémorisation des valeurs, la traduction, et le fait que le `step` exécuté soit celui du modèle sélectionné |
-| `ui_suite` | `ui` | paramètres live, pause, brassage, réinitialisation, thème, langue, géométrie du canvas à trois formats de fenêtre |
-| `view_suite` | `view` | les deux vues : exclusivité des deux canvas, chargement de three.js, vivacité du rendu 3D, chaque modèle en 3D, géométrie du canvas 3D, retour en 2D |
+| `tests/unit.html` | `unit` | **in 2D and in 3D**: torus wrapping, resizing, dimension switching, `setDirection`/`turnTowards`, noise isotropy, grid / brute-force equivalence, k-nearest search against exhaustive scan, the physics of the seven models, both colour bases, registry contract |
+| `registry_suite` | `registry` | the **generated** `<select>` and panel: the selector read from the registry, switching between models, slider regeneration, ARC's nested radii, dimension-dependent ranges, value memory, translation, and the fact that the `step` being run is the selected model's |
+| `ui_suite` | `ui` | live parameters, pause, shuffle, reset, theme, language, canvas geometry at three window shapes |
+| `view_suite` | `view` | the two views: exclusivity of the two canvases, three.js loading, liveness of the 3D rendering, every model in 3D, 3D canvas geometry, back to 2D |
 
-Trois tests méritent d'être signalés parce qu'ils portent sur la physique et
-non sur le code :
+A few tests are worth pointing out because they bear on the physics rather than
+on the code:
 
-- **Vicsek s'ordonne** — grand rayon, faible bruit : la polarisation
-  \|⟨e^{iθ}⟩\| monte à 1,00. Fort bruit : elle retombe à 0,23. La transition
-  est la raison d'être du modèle ; si elle disparaît, le modèle est cassé.
-- **Les agents aveugles ne s'ordonnent pas** — polarisation 0,02, la valeur de
-  hasard à 400 agents. C'est ce qui fait d'eux un modèle nul.
-- **Vicsek à rayon nul redevient aveugle** — un agent n'a alors que lui-même
-  pour voisin. La limite doit être correcte, pas gardée par un cas spécial.
-- **Le voisinage topologique résiste à la dilution** là où le métrique cède —
-  0,90 contre 0,10 sur le même groupe dilué. Si ce test cesse de séparer les
-  deux modèles, la règle topologique est redevenue métrique.
-- **La phase nématique est ordonnée sans être polarisée** — 0,99 contre 0,18.
-- **Aoki-Reynolds-Couzin fait les trois choses** — zone d'alignement dominante :
-  polarisation > 0,5. Zone d'attraction dominante : la distance moyenne au plus
-  proche voisin chute de 0,030 à 0,007. Répulsion seule : les paires proches
-  deviennent cinq fois plus rares qu'en marche aveugle.
-- **Peruani agrège sans aligner** — le cône de vision resserre le groupe
-  (0,030 → 0,002), et deux tests déterministes fixent la non-réciprocité :
-  celui qui suit tourne, celui qui mène ne tourne pas.
+- **Vicsek orders itself** — wide radius, low noise: the polarisation
+  \|⟨e^{iθ}⟩\| rises to 1.00. Heavy noise: it falls back to 0.23. The
+  transition is the model's reason for existing; if it disappears, the model is
+  broken.
+- **Blind agents do not order themselves** — polarisation 0.02, the value of
+  chance at 400 agents. That is what makes them a null model.
+- **Vicsek at zero radius becomes blind again** — an agent then has only itself
+  for a neighbour. The limit has to be correct, not guarded by a special case.
+- **The topological neighbourhood survives dilution** where the metric one
+  gives way — 0.90 against 0.10 on the same thinned flock. If that test stops
+  separating the two models, the topological rule has gone metric again.
+- **The nematic phase is ordered without being polarised** — 0.99 against 0.18.
+- **Aoki-Reynolds-Couzin does all three things** — alignment zone dominant:
+  polarisation > 0.5. Attraction zone dominant: the mean distance to the
+  nearest neighbour drops from 0.030 to 0.007. Repulsion alone: close pairs
+  become five times rarer than in a blind walk.
+- **Peruani aggregates without aligning** — the vision cone tightens the group
+  (0.030 → 0.002), and two deterministic tests pin the non-reciprocity: the one
+  that follows turns, the one that leads does not.
+- **MIPS separates, and only when it is motile** — read against the same bodies
+  at the same density with the propulsion switched off, not against the blind
+  model: blind agents are an ideal gas, so any excess over them could be read
+  as plain excluded volume.
 
-Deux de ces tests ont d'abord échoué sur une **attente fausse de ma part**, pas
-sur un défaut du code, et méritent d'être notés parce que le piège se
-retendra :
+Some of these tests first failed on a **false expectation of mine**, not on a
+defect in the code, and are worth recording because the trap will be set again:
 
-- « la répulsion écarte les agents » est **faux sur un tore** : l'aire est
-  fixée, donc la densité moyenne est imposée et rien ne peut l'écarter. Ce que
-  la répulsion fait, c'est creuser un trou dans la corrélation de paires *à
-  l'échelle de sa propre zone* — la distance de sonde doit donc être mesurée en
-  unités de `Rrep`, pas fixée d'avance.
-- « fuir un voisin droit devant doit donner +π/6 » est **indéterminé** : c'est
-  une bifurcation, gauche et droite se valent. Seul le module est assertable
-  là ; le signe se teste sur un voisin latéral.
-- « un groupe dilué perd son ordre avec un rayon métrique » est **faux à
-  faible bruit** : sur une longue course, chaque agent traverse le tore des
-  dizaines de fois et les rencontres rares suffisent (Vicsek à 0,996). La
-  comparaison ne vit que là où le bruit est assez fort pour que l'ordre exige
-  un alignement à *chaque* pas.
-- « la fraction d'agents dans le plus grand amas mesure l'agrégation » est
-  **inutilisable ici** : à cette densité la connectivité est au seuil de
-  percolation, et deux tirages du *même* modèle aveugle donnent 36 % et 69 %.
-  Cette mesure avait d'abord fait croire à une agrégation MIPS qui n'existait
-  pas encore, puis aurait tout aussi bien pu la manquer une fois réelle. Ce
-  qui est lu maintenant est le nombre moyen de voisins dans 2σ.
+- "repulsion pushes the agents apart" is **false on a torus**: the area is
+  fixed, so the mean density is imposed and nothing can spread it out. What
+  repulsion does is dig a hole in the pair correlation *at the scale of its own
+  zone* — so the probe distance has to be measured in units of `Rrep`, not
+  fixed in advance.
+- "fleeing a neighbour straight ahead must give +π/6" is **undetermined**: it
+  is a bifurcation, left and right are equally good. Only the magnitude is
+  assertable there; the sign is tested on a lateral neighbour.
+- "a thinned flock loses its order with a metric radius" is **false at low
+  noise**: over a long run, each agent crosses the torus dozens of times and
+  the rare encounters are enough (Vicsek at 0.996). The comparison only lives
+  where the noise is strong enough that order requires alignment at *every*
+  step.
+- "the fraction of agents in the largest cluster measures aggregation" is
+  **unusable here**: at this density connectivity sits at the percolation
+  threshold, and two draws of the *same* blind model gave 36 % and 69 %. That
+  measure first made a MIPS aggregation look real when it did not yet exist,
+  and would have been just as able to miss it once it did. What is read now is
+  the mean number of neighbours within 2σ.
 
-Une conséquence de tout cela : le contrat du registre vérifie désormais que
-chaque valeur par défaut **tombe sur un cran de son curseur**. Sans quoi le
-navigateur l'arrondit et le modèle tourne avec une valeur que son propre
-descripteur n'a jamais déclarée. Le test a trouvé deux cas dès son écriture
-(`Rrep` à 0,025 sur un pas de 0,002, `α` à 0,393 sur un pas de 0,01).
+One consequence of all this: the registry contract now checks that every
+default **lands on a step of its slider**. Otherwise the browser rounds it and
+the model runs with a value its own descriptor never declared. The test found
+two cases as soon as it was written (`Rrep` at 0.025 on a step of 0.002, `α` at
+0.393 on a step of 0.01).
 
-Le même piège a mordu une seconde fois, ailleurs, et mérite d'être retenu :
-**un `<input type="range">` rebase silencieusement toute valeur qu'on lui
-donne sur son propre pas**. Les rayons d'ARC n'avaient pas le même pas
-(0,001 pour `Rrep`, 0,005 pour les deux autres), donc pousser `Rrep` à 0,037
-demandait 0,037 à `Ral`, que son pas rabattait à 0,035 — sous `Rrep`, soit
-exactement ce que la contrainte existe pour empêcher. Deux corrections :
-`_applyConstraints` arrondit désormais **dans le sens de la poussée** (vers le
-haut quand il monte, vers le bas quand il descend), ce qui rend le mécanisme
-correct quels que soient les pas, et les trois rayons partagent maintenant le
-même pas.
+The same trap bit a second time, elsewhere, and is worth remembering: **an
+`<input type="range">` silently rebases any value given to it onto its own
+step**. ARC's radii did not share a step (0.001 for `Rrep`, 0.005 for the other
+two), so pushing `Rrep` to 0.037 asked 0.037 of `Ral`, which its step pulled
+back to 0.035 — below `Rrep`, which is exactly what the constraint exists to
+prevent. Two fixes: `_applyConstraints` now rounds **in the direction of the
+push** (up when it rises, down when it falls), which makes the mechanism
+correct whatever the steps are, and the three radii now share the same step.
 
-Ce bug est passé sous les tests parce qu'ils utilisaient tous des valeurs
-tombant sur les crans de tous les curseurs. Le test qui l'attrape balaie chaque
-curseur sur des valeurs volontairement biscornues et vérifie l'invariant après
-chaque mouvement — et il a été validé par mutation : en rétablissant l'arrondi
-au plus proche, il échoue sur `rrep=0.037 -> [0.037, 0.035, 0.45]`, le cas
-observé.
+That bug slipped past the tests because they all used values landing on every
+slider's steps. The test that catches it walks each slider through
+deliberately awkward values and checks the invariant after every move — and it
+was validated by mutation: restoring round-to-nearest makes it fail on
+`rrep=0.037 -> [0.037, 0.035, 0.45]`, the observed case.
 
-Un détail de mise en œuvre : les tests ne peuvent pas capturer une erreur de
-module après coup. `run.py` écrit donc une copie jetable de `index.html`
-portant un capteur d'erreurs (`index_test.html`), supprimée en fin de course :
-la page livrée reste propre.
+An implementation detail: the tests cannot capture a module error after the
+fact. `run.py` therefore writes a throwaway copy of `index.html` carrying an
+error hook (`index_test.html`), deleted at the end of the run: the shipped page
+stays clean.
 
-**Le serveur de développement `serve.py` n'envoie aucun en-tête de cache**, et
-ce n'est pas cosmétique : l'application est faite de modules ES, que les
-navigateurs mettent en cache durement, et `python3 -m http.server` répond 304
-sur un horodatage. Après avoir édité trois modules on peut se retrouver à
-exécuter un mélange d'ancien et de neuf — une interface dont le comportement ne
-correspond à aucune version du code sur le disque. Cela ressemble exactement à
-un bug.
+Another one, learned the hard way: **selenium's own HTTP client gives up on a
+command after two minutes by default**, and `run.py` raises it. `unit.html`
+runs every test synchronously while the page loads, so `driver.get()` does not
+return until the physics is finished — a page load whose length is the length
+of the suite. The MIPS separation test pushed it past the limit, and the suite
+then failed with a read timeout that looked nothing like a slow test.
 
-Lancer la suite exige selenium et geckodriver. Sur cette machine, selenium est
-dans l'environnement du site du LJP, et geckodriver dans `/snap/bin` :
+**The development server `serve.py` sends no cache header**, and that is not
+cosmetic: the application is made of ES modules, which browsers cache hard, and
+`python3 -m http.server` answers 304 on a timestamp. After editing three
+modules you can find yourself running a mixture of old and new — an interface
+whose behaviour matches no version of the code on disk. It looks exactly like a
+bug.
+
+Running the suite needs selenium and geckodriver. On this machine, selenium is
+in the LJP site's environment and geckodriver in `/snap/bin`:
 
 ```bash
 /var/www/LJP/.venv/bin/python Programs/Web/tests/run.py
 ```
 
-Le sandbox empêche selenium de tuer geckodriver en fin de course : une
-`PermissionError` s'affiche **après** le décompte des tests. Elle est sans
-effet sur les résultats.
+The sandbox prevents selenium from killing geckodriver at the end of a run: a
+`PermissionError` shows up **after** the test count. It has no effect on the
+results.
 
-## Le déploiement
+## Deployment
 
-**En ligne : <https://calm.labojeanperrin.fr/>**, servi depuis
-`~/softwares/calm` sur le compte IONOS, atteint par l'alias SSH `ljp-prod`.
-`Programs/Web/deploy.sh` fait tout : suite de tests, `rsync`, puis
-vérification que la page répond, que chaque module qu'elle importe répond
-aussi, et que les `.js` sortent bien avec un type MIME JavaScript — un seul
-404 parmi les modules laisse un écran blanc sans le moindre indice.
+**Online: <https://calm.labojeanperrin.fr/>**, served from `~/softwares/calm`
+on the IONOS account, reached through the SSH alias `ljp-prod`.
+`Programs/Web/deploy.sh` does everything: test suite, `rsync`, then a check
+that the page answers, that every module it imports answers too, and that the
+`.js` files come out with a JavaScript MIME type — a single 404 among the
+modules leaves a blank screen without the slightest clue.
 
-Le domaine est **`labojeanperrin.fr`**, pas `laboratoirejeanperrin.fr` : ce
-dernier ne résout pas du tout. Le certificat `*.labojeanperrin.fr` couvre une
-étiquette et vaut jusqu'au 20 janvier 2027, donc le sous-domaine est protégé
-sans démarche supplémentaire.
+The domain is **`labojeanperrin.fr`**, not `laboratoirejeanperrin.fr`: the
+latter does not resolve at all. The `*.labojeanperrin.fr` certificate covers one
+label and runs until 20 January 2027, so the subdomain is protected with no
+further step.
 
-Sous-domaine statique pur, sans cohérence visuelle avec le site du LJP : le
-logiciel est indépendant.
+A purely static subdomain, with no visual consistency with the LJP site: the
+software is independent.
 
-### Les brouillons
+### Drafts
 
-Un modèle peut porter `draft: true`. Il reste dans l'arbre et dans les tests,
-mais disparaît du sélecteur sur le site public — offrir aux visiteurs un
-modèle qui ne fait pas ce qu'il annonce serait leur montrer un phénomène qui
-n'existe pas.
+A model may carry `draft: true`. It stays in the tree and in the tests, but
+disappears from the selector on the public site — offering visitors a model
+that does not do what it announces would be showing them a phenomenon that is
+not there.
 
-La règle est évaluée **à l'exécution**, contre l'hôte de la page, et non par
-une étape de compilation : il n'y en a pas, ce qui tourne en développement est
-octet pour octet ce qui est déployé, donc la distinction se fait au runtime ou
-pas du tout. Les brouillons apparaissent sur un hôte local (`localhost`,
-`127.0.0.1`, `*.local`, une page `file://`) et, partout, sur demande explicite
-avec `?draft` — ce qui permet de vérifier une correction directement en ligne.
+The rule is evaluated **at runtime**, against the page's own host, and not by a
+build step: there is none, what runs in development is byte for byte what gets
+deployed, so the distinction is made at runtime or not at all. Drafts appear on
+a local host (`localhost`, `127.0.0.1`, `*.local`, a `file://` page) and,
+anywhere, on explicit request with `?draft` — which is what makes it possible
+to check a fix directly online.
 
-Aucun modèle n'est un brouillon aujourd'hui : `mips` était le dernier, et il
-est publié depuis qu'il produit la séparation dont il porte le nom. Le
-mécanisme reste testé — la suite marque un modèle en brouillon le temps du
-test plutôt que de dépendre de celui qui va mal. Un brouillon, quand il y en
-a un, part quand même sur le serveur avec ses illustrations, ce qui est
-volontaire : c'est ce qui rend `?draft` utilisable.
+No model is a draft today: `mips` was the last one, and it has been published
+since it started producing the separation it is named after. The mechanism is
+still tested — the suite marks a model as a draft for the length of the test
+rather than depending on whichever one is in trouble. A draft, when there is
+one, still goes to the server with its illustrations, which is deliberate: that
+is what makes `?draft` usable.
 
-`showsDrafts()` prend un objet `location` en argument, donc le filtrage se
-teste sur des hôtes fictifs sans avoir à déployer quoi que ce soit.
+`showsDrafts()` takes a `location` object as an argument, so the filtering is
+tested on fictitious hosts without deploying anything.
 
-Ce qui est vérifié côté hébergement, et qui a déterminé toute l'architecture :
+What was checked on the hosting side, and what determined the whole
+architecture:
 
-- la production du site LJP est un **hébergement mutualisé IONOS servi en CGI**,
-  Python 3.9, **768 Mo d'espace d'adressage par processus**, un processus par
-  requête. Aucune simulation ne peut donc tourner côté serveur : pas de
-  processus persistant, pas de WebSocket, pas de boucle à 25 Hz maintenue
-  entre deux requêtes. **C'est la contrainte qui impose le calcul dans le
-  navigateur**, et elle est de l'hébergeur, pas d'un choix de style.
-- le certificat TLS est `*.labojeanperrin.fr` et couvre une étiquette, donc
-  `calm.labojeanperrin.fr` fonctionne **sans nouveau certificat**.
-- un logiciel entièrement client se déploie comme des fichiers statiques :
-  un `rsync`, et le contrat CGI n'entre jamais en jeu.
+- the LJP site's production is a **shared IONOS host served over CGI**, Python
+  3.9, **768 MB of address space per process**, one process per request. No
+  simulation can therefore run server-side: no persistent process, no
+  WebSocket, no 25 Hz loop held between two requests. **This is the constraint
+  that puts the computation in the browser**, and it comes from the host, not
+  from a matter of style.
+- the TLS certificate is `*.labojeanperrin.fr` and covers one label, so
+  `calm.labojeanperrin.fr` works **without a new certificate**.
+- a fully client-side piece of software deploys as static files: an `rsync`,
+  and the CGI contract never comes into play.
 
-Le site lui-même (Flask, MySQL, blueprints, i18n Flask-Babel, `deployment/deploy.sh`)
-n'a **pas** été modifié, conformément à la consigne.
+The site itself (Flask, MySQL, blueprints, Flask-Babel i18n,
+`deployment/deploy.sh`) has **not** been modified, as instructed.
 
-## Décisions actées
+## Decisions taken
 
-1. **CALM** comme nom. Écartés pour collision : SHOAL (`cazala/shoal`, une
-   bibliothèque de flocking en JS — collision thématique frontale), SWIRL et
-   FLOCK (saturés), BOIDS (appartient à la littérature, Reynolds 1986).
-2. **Portage du moteur en JavaScript**, pas Pyodide : le plus rapide pour le
-   visiteur, contre 7 à 12 Mo de téléchargement et 2 à 5 s de démarrage.
-3. **Sous-domaine statique pur**, indépendant visuellement du site.
-4. **lib-anim écartée.** Étendre la librairie au web est faisable — ses items
-   *détiennent* un `qitem` au lieu d'en hériter, ce qui est la bonne séparation
-   — mais le chantier (couche backend à interposer dans les douze fichiers de
-   `anim/plane`, bounding boxes à extraire de Qt, Qt3D et matplotlib non
-   portables) coûte plusieurs semaines contre quelques jours pour le logiciel
-   lui-même. À reconsidérer si l'objectif devient de publier toutes les
-   animations scientifiques du laboratoire depuis une source Python unique.
-5. **La version Qt est archivée** sur la branche `desktop-pyqt5` et retirée de
-   `master`. Elle reste la référence de vérification des modèles.
+1. **CALM** as the name. Ruled out for collision: SHOAL (`cazala/shoal`, a
+   flocking library in JS — a head-on thematic collision), SWIRL and FLOCK
+   (saturated), BOIDS (belongs to the literature, Reynolds 1986).
+2. **Porting the engine to JavaScript**, not Pyodide: the fastest for the
+   visitor, against 7 to 12 MB of download and 2 to 5 s of startup.
+3. **A purely static subdomain**, visually independent of the site.
+4. **lib-anim ruled out.** Extending the library to the web is feasible — its
+   items *hold* a `qitem` instead of inheriting from one, which is the right
+   separation — but the work (a backend layer to interpose in the twelve files
+   of `anim/plane`, bounding boxes to extract from Qt, Qt3D and matplotlib not
+   portable) costs several weeks against a few days for the software itself. To
+   be reconsidered if the goal becomes publishing all of the laboratory's
+   scientific animations from a single Python source.
+5. **The Qt version is archived** on the `desktop-pyqt5` branch and removed
+   from `master`. It remains the reference for checking the models.
 
-## Modèles portés
+## Ported models
 
-| Modèle | Paramètres propres | Origine |
-| --- | --- | --- |
-| Nom affiché | `id` | Paramètres propres | Origine |
+| Displayed name | `id` | Own parameters | Origin |
 | --- | --- | --- | --- |
-| Agents aveugles | `blind` | aucun | modèle nul |
-| Alignement métrique (Vicsek) | `vicsek` | `r` | version Qt |
-| Répulsion stérique (MIPS) | `mips` | `σ` | ARCMP **6**, 219 (2015) |
-| Alignement topologique (Ballerini) | `topological` | `k` | PNAS **105**, 1232 (2008) |
-| Alignement nématique | `nematic` | `r` | PRL **104**, 184502 (2010) |
-| Boids (Aoki - Reynolds - Couzin) | `aoki-reynolds-couzin` | `Rrep`, `Ral`, `Ratt`, `α` | version Qt |
-| Cône de vision (Peruani) | `peruani` | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
-| Perceptrons | — | `w1`…`w4`, `δ` | **à porter** |
+| Blind agents | `blind` | none | null model |
+| Metric alignment (Vicsek) | `vicsek` | `r` | Qt version |
+| Steric repulsion (MIPS) | `mips` | `σ` | ARCMP **6**, 219 (2015) |
+| Topological alignment (Ballerini) | `topological` | `k` | PNAS **105**, 1232 (2008) |
+| Nematic alignment | `nematic` | `r` | PRL **104**, 184502 (2010) |
+| Boids (Aoki - Reynolds - Couzin) | `aoki-reynolds-couzin` | `Rrep`, `Ral`, `Ratt`, `α` | Qt version |
+| Vision cone (Peruani) | `peruani` | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
+| Perceptrons | — | `w1`…`w4`, `δ` | **to be ported** |
 
-Les noms affichés désignent le **mécanisme** plutôt que les auteurs, avec la
-référence entre parenthèses : c'est ce que le visiteur a besoin de savoir pour
-choisir, et cela rend l'ordre du sélecteur lisible d'un coup d'œil.
+The displayed names denote the **mechanism** rather than the authors, with the
+reference in parentheses: that is what a visitor needs to know in order to
+choose, and it makes the order of the selector legible at a glance.
 
-Cet ordre place **MIPS juste après Vicsek**, et non en fin de liste : Vicsek
-dit qu'un groupe s'ordonne parce que ses membres se copient, MIPS dit qu'un
-groupe peut se structurer sans copier quoi que ce soit. C'est la moitié la
-plus surprenante, et elle porte le mieux tant que Vicsek est encore sous les
-yeux. Les deux autres formes d'alignement — par comptage, sur un axe —
-viennent après, comme des variations sur la première.
+That order puts **MIPS right after Vicsek**, and not at the end of the list:
+Vicsek says a group orders itself because its members copy each other, MIPS
+says a group can structure itself without copying anything at all. That is the
+more surprising half, and it lands best while Vicsek is still in the eye. The
+two other forms of alignment — by count, on an axis — come afterwards, as
+variations on the first.
 
-Les `id` ne suivent **pas** les noms affichés, et ne doivent pas les suivre :
-ils apparaissent dans le fragment d'URL, donc renommer un modèle dans
-l'interface ne doit pas casser un lien que quelqu'un a gardé. `aoki-reynolds-couzin`
-reste l'id du modèle affiché « Boids ».
+The `id`s do **not** follow the displayed names, and must not: they appear in
+the URL fragment, so renaming a model in the interface must not break a link
+somebody saved. `aoki-reynolds-couzin` remains the id of the model displayed as
+"Boids".
 
-**Boids** porte le nom complet des trois contributions : Aoki (1982) pour les
-zones concentriques, Reynolds (1987) pour les trois règles des *boids* — d'où
-le nom affiché — et Couzin *et al.* (2002) pour le diagramme de phases. La
-version Qt l'appelait « Aoki-Couzin ».
+**Boids** carries the full name of the three contributions: Aoki (1982) for the
+concentric zones, Reynolds (1987) for the three rules of the *boids* — hence
+the displayed name — and Couzin *et al.* (2002) for the phase diagram. The Qt
+version called it "Aoki-Couzin".
 
-Un écart signalé avec la référence Python : la branche « alignement **et**
-attraction » y est écrite `if Nal & Natt`, un *et* bit-à-bit sur deux
-effectifs, qui vaut faux pour un voisin d'alignement et deux d'attraction
-(`1 & 2 == 0`) et laisse alors tomber l'attraction. Lu comme le *et* logique
-manifestement voulu.
+One flagged departure from the Python reference: the "alignment **and**
+attraction" branch is written there as `if Nal & Natt`, a bitwise *and* on two
+counts, which is false for one alignment neighbour and two attraction ones
+(`1 & 2 == 0`) and then drops the attraction. Read as the logical *and*
+obviously intended.
 
-**Peruani** est le seul modèle de la liste **sans aucun alignement des
-vitesses** : un agent est attiré par la position des voisins qu'il voit, jamais
-par leur orientation. Et comme le cône de vision n'est pas réciproque — *i*
-peut voir *j* sans être vu de lui — la troisième loi de Newton est violée, ce
-qui produit des motifs inaccessibles à un modèle d'alignement. C'est ce qui
-justifie sa place à côté des trois autres.
+**Peruani** is the only model in the list **with no velocity alignment at
+all**: an agent is attracted by the position of the neighbours it sees, never
+by their orientation. And since the vision cone is not reciprocal — *i* can see
+*j* without being seen by it — Newton's third law is violated, which produces
+patterns unreachable by an alignment model. That is what justifies its place
+next to the other three.
 
-Le bruit du modèle, `√(2Dθ)`, est le curseur général de bruit de
-réorientation, et le pas vaut une unité de temps, donc `γ` se lit comme `γ·dt`.
+The model's noise, `√(2Dθ)`, is the general reorientation noise slider, and the
+step is one time unit, so `γ` reads as `γ·dt`.
 
-**Les agents topologiques** comptent leur voisinage au lieu de le mesurer :
-les `k` plus proches, quelle que soit la distance. C'est ce qu'on observe chez
-les étourneaux (Ballerini *et al.*, 2008), et la conséquence est testée
-directement — un groupe dilué reste ordonné avec un voisinage topologique
-(polarisation 0,90) et se désordonne avec un rayon métrique (0,10).
+**Topological agents** count their neighbourhood instead of measuring it: the
+`k` nearest, whatever the distance. This is what is observed in starlings
+(Ballerini *et al.*, 2008), and the consequence is tested directly — a thinned
+flock stays ordered with a topological neighbourhood (polarisation 0.90) and
+goes disordered with a metric radius (0.10).
 
-L'implémentation est en deux étages, dans `KNearest` : la grille cherche dans
-un rayon calculé pour contenir `k` voisins à la densité moyenne, et les agents
-qui en trouvent moins — ceux des zones clairsemées, précisément ceux dont parle
-le modèle — déclenchent un balayage complet. Tronquer aurait silencieusement
-rendu le modèle métrique, ce qui est la seule chose qu'il ne doit pas être.
+The implementation is in two stages, in `KNearest`: the grid searches within a
+radius computed to hold `k` neighbours at the mean density, and the agents that
+find fewer — those in the sparse patches, precisely the ones the model is about
+— trigger a full sweep. Truncating would have silently made the model metric,
+which is the one thing it must not be.
 
-**Les agents nématiques** s'alignent modulo π : le doublement des angles rend
-la moyenne aveugle à la distinction tête/queue. Le directeur ne nomme qu'un
-axe, donc deux caps opposés ; l'agent garde celui vers lequel il allait déjà.
-Le test mesure les deux paramètres d'ordre à la fois — nématique 0,99,
-polarisation 0,18 — ce qui est la signature de la phase et la distingue de
-Vicsek.
+**Nematic agents** align modulo π: doubling the angles makes the mean blind to
+the head/tail distinction. The director names only an axis, hence two opposite
+headings; the agent keeps the one it was already going towards. The test
+measures both order parameters at once — nematic 0.99, polarisation 0.18 —
+which is the signature of the phase and what distinguishes it from Vicsek.
 
-**La répulsion stérique** n'a aucune interaction d'orientation : seule une
-répulsion à courte portée, réciproque, et c'est le premier modèle qui a besoin
-de `State.displace()` plutôt que du seul `state.move()`. C'est aussi le seul
-qui subdivise son pas de temps.
+**Steric repulsion** has no interaction of orientation: only a short-range,
+reciprocal repulsion, and it is the first model that needs `State.displace()`
+rather than `state.move()` alone. It is also the only one that subdivides its
+time step.
 
-> **Ce modèle a longtemps été un brouillon, parce qu'il ne produisait pas la
-> séparation dont il porte le nom.** Le diagnostic d'alors — « la boîte fait
-> une trentaine de diamètres là où la littérature en utilise des centaines »
-> — était faux. La cause était l'intégration, et elle se lit en deux lignes.
+> **This model was a draft for a long time, because it did not produce the
+> separation it is named after.** The diagnosis of the day — "the box is some
+> thirty diameters across where the literature uses hundreds" — was wrong. The
+> cause was the integration, and it reads in two lines.
 >
-> Pour une paire au recouvrement `u = σ − r`, une répulsion harmonique
-> appliquée comme un déplacement de `(A/σ)·u` par agent donne la récurrence
-> `u ← u(1 − 2A/σ)`. Le défaut d'alors, `A = 0,02` avec `σ = 0,03`, plaçait
-> `2A/σ` à 1,33 : facteur **−0,33**, donc chaque contact dépassait en s'ouvrant
-> puis revenait. C'était le mouvement « peu naturel » qu'on voyait. Le curseur
-> montait à `A = 0,05`, où le facteur vaut −19 et où seul le plafond par agent
-> tenait la simulation à l'écran.
+> For a pair at overlap `u = σ − r`, a harmonic repulsion applied as a
+> displacement of `(A/σ)·u` per agent gives the recurrence `u ← u(1 − 2A/σ)`.
+> The default of the day, `A = 0.02` with `σ = 0.03`, put `2A/σ` at 1.33:
+> factor **−0.33**, so every contact overshot into a gap and came back. That
+> was the "unnatural" motion one could see. The slider went up to `A = 0.05`,
+> where the factor is −19 and only the per-agent cap kept the simulation on
+> screen.
 >
-> Et les réglages stables étaient bien trop mous pour bloquer : l'équilibre
-> `A(1 − r/σ) = v₀` tombait à `r = 0,7σ`, soit un tiers d'interpénétration, un
-> diamètre effectif de 0,7σ et une fraction surfacique effective réduite de
-> moitié. Mesuré sur cette version : `v/v₀ = 0,52` dans les voisinages les
-> plus denses, et un courant `φ·v(φ)` **croissant partout**, donc le critère
-> d'instabilité `v + ρv′ < 0` (Cates & Tailleur, ARCMP **6**, 219, 2015)
-> n'était atteint nulle part sur les curseurs.
+> And the stable settings were far too soft to block anything: the balance
+> `A(1 − r/σ) = v₀` fell at `r = 0.7σ`, a third of interpenetration, an
+> effective diameter of 0.7σ and an effective packing fraction cut in half.
+> Measured on that version: `v/v₀ = 0.52` in the densest neighbourhoods, and a
+> current `φ·v(φ)` **increasing everywhere**, so the instability criterion
+> `v + ρv′ < 0` (Cates & Tailleur, ARCMP **6**, 219, 2015) was met nowhere on
+> the sliders.
 >
-> Durcir le contact demande `A ≈ 4σ`, que le pas explicite ne peut pas porter.
-> Les deux exigences ne se concilient qu'à pas plus petit, d'où le **sous-pas**
-> : l'image reste une unité de temps, la physique tourne en `h = 1/k` à
-> l'intérieur. L'advection s'échelonne en `h` et le bruit angulaire en `√h`,
-> donc la vitesse visible et la diffusion de rotation sont inchangées — c'est
-> testé — et seuls les contacts changent.
+> Hardening the contact needs `A ≈ 4σ`, which the explicit step cannot carry.
+> The two demands are only compatible at a smaller step, hence the
+> **sub-step**: the frame stays one time unit, the physics runs in `h = 1/k`
+> inside it. Advection scales as `h` and the angular noise as `√h`, so the
+> visible speed and the rotational diffusion are unchanged — this is tested —
+> and only the contacts change.
 >
-> Les deux constantes du fichier (`CONTRACTION = 0,4`, la fraction de
-> recouvrement effacée par sous-pas, sous 1/2 donc jamais d'oscillation ;
-> `OVERLAP = 0,05`, la profondeur d'équilibre en unités de σ) fixent `k` et ne
-> laissent que **σ** sur le panneau. `A` a disparu : c'était un curseur dont la
-> moitié haute était numériquement instable.
+> The two constants of the file (`CONTRACTION = 0.4`, the fraction of an
+> overlap removed per sub-step, under 1/2 hence never any ringing;
+> `OVERLAP = 0.05`, the equilibrium depth in units of σ) fix `k` and leave only
+> **σ** on the panel. `A` is gone: it was a slider whose upper half was
+> numerically unstable.
 >
-> Après correction, à n = 900, σ = 0,03, bruit = 0,03 : `v/v₀ = 0,19–0,24` dans
-> les voisinages denses, `φ·v` non monotone (maximum vers φ_loc ≈ 0,55 puis
-> décroissance), et le nombre moyen de voisins dans 2σ passe au-dessus du même
-> système **sans motilité**. La séparation se voit à l'œil en une minute.
+> After the fix, at n = 900, σ = 0.03, noise = 0.03: `v/v₀ = 0.19–0.24` in the
+> dense neighbourhoods, `φ·v` non-monotonic (a maximum around φ_loc ≈ 0.55 then
+> decreasing), and the mean number of neighbours within 2σ rises above the same
+> system **without motility**. The separation is visible to the eye within a
+> minute.
 >
-> **Limite connue, en 3D : pas de séparation, et ce n'est pas le plafond de σ
-> qui l'empêche.** Mesuré à mille agents, σ poussé au-delà du curseur : la
-> répulsion marche — le plus proche voisin moyen tombe à 0,99 σ pour σ = 0,08
-> et 0,95 σ pour σ = 0,10, contre 0,70 σ et 0,57 σ en marche aveugle — mais le
-> groupe reste homogène à tout σ, y compris à σ = 0,10 où la fraction
-> volumique vaut 0,52, une densité de MIPS tout à fait ordinaire. Le rapport
-> du nombre de voisins dans 2σ à celui du modèle aveugle reste entre 0,97 et
-> 1,02.
+> **Known limitation, in 3D: no separation, and it is not the ceiling on σ that
+> prevents it.** Measured at a thousand agents, with σ pushed past the slider:
+> the repulsion works — the mean nearest neighbour falls to 0.99 σ at σ = 0.08
+> and 0.95 σ at σ = 0.10, against 0.70 σ and 0.57 σ for blind walks — but the
+> flock stays homogeneous at every σ, including σ = 0.10 where the volume
+> fraction is 0.52, a perfectly ordinary MIPS density. The ratio of the number
+> of neighbours within 2σ to the blind model's stays between 0.97 and 1.02.
 >
-> Ce qui manque, c'est la place. À densité fixée, la boîte mesure √n diamètres
-> en 2D mais **n^⅓** en 3D : cinq cents agents donnent 33 σ en 2D, où deux
-> phases tiennent, tandis que mille n'en donnent que 12 en 3D, où elles ne
-> tiennent pas. Égaler le cas 2D demanderait une vingtaine de milliers
-> d'agents, contre un plafond de mille fixé par le budget d'image. Le coût de
-> MIPS étant linéaire en n, quinze mille agents à quatre sous-pas font ~46 ms
-> par image : c'est jouable, mais cela touche le plafond commun à tous les
-> modèles et le rendu three.js, pas ce fichier.
+> What is missing is room. At a fixed density the box measures √n diameters in
+> 2D but **n^⅓** in 3D: five hundred agents give 33 σ in 2D, where two phases
+> fit, while a thousand give only 12 in 3D, where they do not. Matching the 2D
+> case would take some twenty thousand agents, against a cap of one thousand
+> set by the frame budget. Since the cost of MIPS is linear in n, fifteen
+> thousand agents at four sub-steps come to ~46 ms per frame: that is playable,
+> but it touches the cap common to every model and the three.js rendering, not
+> this file.
 
-## Reste à porter
+## Still to port
 
-Les perceptrons, dans `agent.update` de la version archivée
-(`git show desktop-pyqt5:Programs/Python/Engine.py`, branche `Perceptron`),
-demandent le champ de perception en tranches angulaires (`agent.perceive`) — la
-grille rend déjà les décalages toroïdaux vers chaque voisin, ce qui en est la
-moitié.
+The perceptrons, in `agent.update` of the archived version
+(`git show desktop-pyqt5:Programs/Python/Engine.py`, `Perceptron` branch), need
+the perception field in angular slices (`agent.perceive`) — the grid already
+returns the toroidal offsets to each neighbour, which is half of it.
 
-## Reste à faire
+## Still to do
 
-- Porter les perceptrons, le dernier modèle de la version Qt.
+- Port the perceptrons, the last model of the Qt version.
