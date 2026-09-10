@@ -1,148 +1,145 @@
 # CALM — Collective Animal Locomotion Models
 
-Un simulateur interactif de modèles de mouvement collectif, destiné à la
-vulgarisation : on choisit un modèle, on déplace les curseurs, et la simulation
-se réorganise sous la main.
+An interactive simulator of collective motion models, meant for outreach: pick
+a model, move the sliders, and the simulation rearranges itself under your
+hand.
 
-Le logiciel tourne dans le navigateur, sans dépendance ni étape de
-compilation : [`Programs/Web`](Programs/Web).
+The software runs in the browser, with no dependency and no build step:
+[`Programs/Web`](Programs/Web).
 
-La version de bureau en PyQt5, dont celle-ci est le portage, est archivée sur
-la branche **`desktop-pyqt5`** :
+The PyQt5 desktop version this one was ported from is archived on the
+**`desktop-pyqt5`** branch:
 
 ```bash
-git switch desktop-pyqt5      # la version Qt, dans Programs/Python
-git switch master             # revenir à la version web
+git switch desktop-pyqt5      # the Qt version, in Programs/Python
+git switch master             # back to the web version
 ```
 
-Elle reste la référence contre laquelle les modèles ont été vérifiés, mais
-n'est plus maintenue.
+It remains the reference the models were checked against, but is no longer
+maintained.
 
-## Lancer le logiciel
+## Running it
 
-Aucune dépendance, aucune étape de compilation : les modules ES sont chargés
-tels quels par le navigateur. Il faut simplement un serveur HTTP, parce que les
-modules ES ne se chargent pas depuis `file://`.
+No dependency, no build step: the ES modules are loaded as they are by the
+browser. All it takes is an HTTP server, because ES modules will not load from
+`file://`.
 
 ```bash
 Programs/Web/serve.py
 ```
 
-Puis <http://127.0.0.1:8000/> (`serve.py 8080` pour un autre port). Toute
-modification est visible au rechargement.
+Then <http://127.0.0.1:8000/> (`serve.py 8080` for another port). Any change
+shows up on a reload.
 
-Utilisez bien ce script plutôt que `python3 -m http.server` : il désactive la
-mise en cache. Sans cela, le navigateur garde les modules ES et l'on peut se
-retrouver à exécuter un mélange d'ancien et de neuf, ce qui ressemble en tout
-point à un bug.
+Do use this script rather than `python3 -m http.server`: it turns caching off.
+Without that the browser holds on to the ES modules, and you can end up running
+a mixture of old and new, which looks exactly like a bug.
 
 ## Tests
 
-La suite tourne dans un vrai navigateur (Firefox, piloté par selenium) : c'est
-là que le code s'exécute, donc c'est là qu'il est vérifié.
+The suite runs in a real browser (Firefox, driven by selenium): that is where
+the code runs, so that is where it is checked.
 
 ```bash
-Programs/Web/tests/run.py                      # les quatre suites, sans fenêtre
-Programs/Web/tests/run.py --headed             # en regardant le navigateur
-Programs/Web/tests/run.py --only unit          # une seule suite
-Programs/Web/tests/run.py --shots /tmp/calm    # avec des captures d'écran
+Programs/Web/tests/run.py                      # all four suites, headless
+Programs/Web/tests/run.py --headed             # watching the browser
+Programs/Web/tests/run.py --only unit          # a single suite
+Programs/Web/tests/run.py --shots /tmp/calm    # with screenshots
 ```
 
-Les suites sont `unit`, `ui`, `registry` et `view`. La complète prend quelques
-minutes : l'essentiel est la physique, qui fait tourner des milliers de pas
-dans les deux dimensions.
+The suites are `unit`, `ui`, `registry` and `view`. The full run takes a few
+minutes: most of it is the physics, which puts thousands of steps through both
+dimensions.
 
-Les tests unitaires s'ouvrent aussi à la main dans un navigateur, sur
-`tests/unit.html`, où ils s'affichent en texte.
+The unit tests also open by hand in a browser, at `tests/unit.html`, where they
+report as text.
 
-Elle exige `selenium` et `geckodriver`. Sur la machine de développement,
-selenium est dans l'environnement du site du LJP :
+It needs `selenium` and `geckodriver`.
+
+## Models
+
+Seven models are available:
+
+- **Blind agents** — they perceive nothing and follow independent random walks.
+  This is the collection's null model, the one that calibrates the eye before
+  any interaction comes into play.
+- **Metric alignment (Vicsek)** — agents take the mean orientation of their
+  neighbours within a radius *r*. Alignment is their only interaction, and it
+  is enough to make aggregation emerge. Raise *r* and the group orders itself;
+  raise the reorientation noise and the order comes undone.
+- **Steric repulsion (MIPS)** — no interaction of orientation at all, only
+  bodies of diameter *σ* that cannot pass through one another. And yet the
+  group separates into dense clusters and empty space: it aggregates *because*
+  it repels. An agent that runs into others keeps pushing, because its heading
+  only turns by diffusion; it slows down where it is crowded, so it spends
+  longer there. Raise *σ* and the agent count, lower the noise, and the
+  separation sets in — in 2D. It does not appear in 3D, and not for want of
+  density: a thousand agents give a box only twelve diameters across, where two
+  phases have no room. See `AGENTS.md` for the measurements.
+- **Topological alignment (Ballerini)** — agents align on their *k* nearest
+  neighbours whatever the distance: the neighbourhood is counted, not measured.
+  This is what starlings do (Ballerini *et al.*, *PNAS* **105**, 1232, 2008).
+  Compare with Vicsek by lowering the agent count: a metric neighbourhood
+  empties and the order collapses, a topological one never empties.
+- **Nematic alignment** — rods with no head and no tail, aligned on an *axis*
+  rather than a direction. The result is lanes travelled both ways: the group
+  is ordered while its polarisation stays zero.
+- **Boids (Aoki - Reynolds - Couzin)** — three concentric zones: repulsion,
+  alignment, attraction, plus a blind sector behind. Since the turn is capped
+  at every step, the group can start milling in a torus.
+- **Vision cone (Peruani)** — agents are attracted to the *position* of the
+  neighbours they see inside a vision cone, with no velocity alignment at all.
+  The cone is not reciprocal, which gives clusters, mills and led trails.
+  After Barberis & Peruani, *Phys. Rev. Lett.* **117**, 248001 (2016).
+
+## Two views
+
+The **2D / 3D** selector, at the top of the panel, switches the view *and* the
+simulation: the models run in both dimensions. In 3D the view turns slowly on
+its own until you grab it — drag to orient, wheel to zoom.
+
+Agents are **coloured by their orientation**, live and in both views: a
+polarised group turns a single colour, a nematic phase shows two opposite hues
+in separate lanes, a disordered gas stays confetti. In 3D the hue gives the
+azimuth, and the elevation lightens towards white or darkens towards black.
+
+A model may ask to be drawn as **bodies rather than arrows**, at the diameter
+one of its own parameters gives — discs in 2D, spheres in 3D. MIPS is the case:
+its agents have no orientation interaction to show, and whether two of them
+touch is the whole mechanism.
+
+The 3D view builds on three.js, vendored in `Programs/Web/vendor/`: nothing is
+loaded from a CDN, neither for the tests nor in production.
+
+The perceptrons exist in the archived Qt version and are still to be ported.
+Each model is one file in
+[`Programs/Web/js/models/`](Programs/Web/js/models) plus a line in the
+registry; the interface follows from that.
+
+## Deployment
+
+The software is online: **<https://calm.labojeanperrin.fr/>**
 
 ```bash
-/var/www/LJP/.venv/bin/python Programs/Web/tests/run.py
+Programs/Web/deploy.sh              # tests, then upload
+Programs/Web/deploy.sh --dry-run    # what would go, changing nothing
+Programs/Web/deploy.sh --no-tests   # upload alone
 ```
 
-## Modèles
+The site is entirely static: deployment is a copy of `Programs/Web`, with no
+build and no server-side Python. What is sent is byte for byte what was tested.
+The script then checks that the page and each of its modules answer.
 
-Sept modèles sont disponibles :
+### Draft models
 
-- **Agents aveugles** — ils ne perçoivent rien et suivent des marches
-  aléatoires indépendantes. C'est le modèle nul de la collection, celui qui
-  étalonne le regard avant qu'une interaction n'entre en jeu.
-- **Alignement métrique (Vicsek)** — les agents prennent l'orientation moyenne de leurs voisins
-  dans un rayon *r*. L'alignement est leur seule interaction, et il suffit à
-  faire émerger un mouvement d'ensemble. Montez *r*, et le groupe s'ordonne ;
-  montez le bruit de réorientation, et l'ordre se défait.
-- **Répulsion stérique (MIPS)** — aucune interaction d'orientation, seulement
-  des corps de diamètre *σ* qui ne peuvent pas se traverser. Et pourtant le
-  groupe se sépare en amas denses et en vide : il s'agrège *parce qu'il se
-  repousse*. Un agent qui butte contre les autres continue de pousser, parce
-  que son cap ne tourne que par diffusion ; il ralentit là où c'est encombré,
-  donc il y reste plus longtemps. Montez *σ* et le nombre d'agents, baissez le
-  bruit, et la séparation s'installe — en 2D ; la 3D n'atteint pas la fraction
-  volumique qu'il faudrait, voir `AGENTS.md`.
-- **Alignement topologique (Ballerini)** — les agents s'alignent sur leurs *k* plus proches voisins,
-  quelle que soit la distance : le voisinage se compte, il ne se mesure pas.
-  C'est ce que font les étourneaux (Ballerini *et al.*, *PNAS* **105**, 1232,
-  2008). Comparez avec Vicsek en réduisant le nombre d'agents : le voisinage
-  métrique se vide et l'ordre s'effondre, le topologique ne se vide jamais.
-- **Alignement nématique** — des bâtonnets sans tête ni queue, alignés sur un
-  *axe* et non une direction. Il en résulte des voies parcourues dans les deux
-  sens : le groupe est ordonné alors que sa polarisation reste nulle.
-- **Boids (Aoki - Reynolds - Couzin)** — trois zones concentriques : répulsion,
-  alignement, attraction, plus un secteur aveugle derrière. La réorientation
-  étant plafonnée à chaque pas, le groupe peut se mettre à tourner en tore.
-- **Cône de vision (Peruani)** — les agents sont attirés par la *position* des voisins qu'ils voient
-  dans un cône de vision, sans aucun alignement des vitesses. Le cône n'étant
-  pas réciproque, on obtient des agrégats, des rondes et des files à meneurs.
-  D'après Barberis & Peruani, *Phys. Rev. Lett.* **117**, 248001 (2016).
+A model marked `draft: true` in its file stays in the repository and in the
+tests, but does not appear in the selector on the public site. Adding `?draft`
+to the URL brings them back, which is what makes it possible to check one
+directly online.
 
-## Deux vues
-
-Le sélecteur **2D / 3D**, en haut du panneau, bascule la vue *et* la
-simulation : les modèles tournent dans les deux dimensions. En 3D, la vue
-tourne lentement d'elle-même jusqu'à ce que vous la saisissiez — glissez pour
-l'orienter, molette pour zoomer.
-
-Les agents sont **colorés selon leur orientation**, en direct et dans les deux
-vues : un groupe polarisé vire à une seule couleur, une phase nématique montre
-deux teintes opposées en voies séparées, un gaz désordonné reste un confetti.
-En 3D, la teinte donne l'azimut, et l'élévation éclaircit vers le blanc ou
-assombrit vers le noir.
-
-La 3D s'appuie sur three.js, embarqué dans `Programs/Web/vendor/` : rien n'est
-chargé depuis un CDN, ni pour les tests ni en production.
-
-Les perceptrons existent dans la version Qt archivée et restent à porter.
-Chaque modèle est un fichier de
-[`Programs/Web/js/models/`](Programs/Web/js/models) et une ligne dans le
-registre ; l'interface s'en déduit.
-
-## Déploiement
-
-Le logiciel est en ligne : **<https://calm.labojeanperrin.fr/>**
-
-```bash
-Programs/Web/deploy.sh              # tests, puis envoi
-Programs/Web/deploy.sh --dry-run    # ce qui partirait, sans rien modifier
-Programs/Web/deploy.sh --no-tests   # envoi seul
-```
-
-Le site est entièrement statique : le déploiement est une copie de
-`Programs/Web`, sans compilation ni Python côté serveur. Ce qui est envoyé est
-octet pour octet ce qui a été testé. Le script vérifie ensuite que la page et
-chacun de ses modules répondent.
-
-### Modèles en brouillon
-
-Un modèle marqué `draft: true` dans son fichier reste présent dans le dépôt et
-dans les tests, mais n'apparaît pas dans le sélecteur du site public. Ajouter
-`?draft` à l'URL les fait réapparaître, ce qui permet d'en vérifier un
-directement en ligne.
-
-Aucun modèle n'est en brouillon aujourd'hui : **MIPS** était le dernier, et il
-est publié depuis qu'il produit bien la séparation de phase.
+No model is a draft today: **MIPS** was the last one, and it has been published
+since it started producing the phase separation it is named after.
 
 ## Licence
 
-Le dépôt est ouvert. Crafted with ❤️ by Raphaël Candelier.
+The repository is open. Crafted with ❤️ by Raphaël Candelier.
