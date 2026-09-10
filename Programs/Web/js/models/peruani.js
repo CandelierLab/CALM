@@ -41,29 +41,20 @@ export default {
   },
 
   description: {
-    fr: 'Les agents de Peruani sont <b>attirés</b> par les voisins qu’ils '
-      + 'voient — ceux situés dans un rayon <i>R</i> et dans un cône de vision '
-      + 'de demi-angle <i>β</i> devant eux. Ils ne regardent jamais '
-      + 'l’orientation de leurs voisins, seulement leur position : il n’y a '
-      + 'ici <b>aucun alignement</b>. Comme le cône n’est pas réciproque, un '
-      + 'agent peut en voir un autre sans être vu de lui, ce qui suffit à '
-      + 'produire des agrégats, des rondes et des files dont les agents de '
-      + 'tête deviennent des meneurs par accident de géométrie. '
-      + '<i>γ</i> est la force de cette attraction : la réorientation '
-      + 'maximale, en radians, qu’un agent peut effectuer en un pas de temps. '
-      + 'À <i>γ</i> nul, ils ne réagissent plus du tout ; plus il est grand, '
-      + 'plus ils se tournent brusquement vers ce qu’ils voient.',
-    en: 'Peruani agents are <b>attracted</b> to the neighbours they can see — '
-      + 'those within a radius <i>R</i> and inside a vision cone of half-angle '
-      + '<i>β</i> ahead of them. They never look at their neighbours’ '
-      + 'orientation, only at their position: there is <b>no alignment</b> '
-      + 'here at all. Because the cone is not reciprocal, one agent can see '
-      + 'another without being seen back, and that alone produces aggregates, '
-      + 'milling and moving files whose front agents become leaders by '
-      + 'accident of geometry. <i>γ</i> is the strength of that attraction: '
-      + 'the largest turn, in radians, an agent can make in one time step. At '
-      + '<i>γ</i> = 0 they stop responding altogether; the larger it is, the '
-      + 'more sharply they swing towards what they see.',
+    fr: 'Ces agents sont attirés par les voisins qu’ils voient — ceux situés '
+      + 'dans un rayon <i>R</i> et dans un cône de vision de demi-angle '
+      + '<i>β</i> devant eux. <i>γ</i> est la force de cette attraction : '
+      + 'c’est la réorientation maximale qu’un agent peut effectuer en un pas '
+      + 'de temps. Il n’y a ici <b>aucun alignement</b>. Comme le cône n’est '
+      + 'pas réciproque, un agent peut en voir un autre sans être vu de lui, '
+      + 'ce qui suffit à produire des agrégats, des rondes et des files.',
+    en: 'These agents are attracted to the neighbours they can see — those '
+      + 'within a radius <i>R</i> and inside a vision cone of half-angle '
+      + '<i>β</i> in front of them. <i>γ</i> is the strength of that '
+      + 'attraction: the largest turn an agent can make in one time step. '
+      + 'There is <b>no alignment</b> here at all. Since the cone is not '
+      + 'reciprocal, an agent can see another without being seen by it, and '
+      + 'that alone is enough to produce clusters, mills and trails.',
   },
 
   illustration: 'Peruani',

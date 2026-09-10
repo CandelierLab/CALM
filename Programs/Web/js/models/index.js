@@ -48,10 +48,16 @@ import mips from './mips.js';
 /* Order is the order of the selector, and the first one is the default: the
  * blind agents come first because they are the null model everything else is
  * read against. */
-/* A reading order, not an alphabet: no interaction at all, then the three
- * flavours of alignment (by distance, by count, on an axis), then the zonal
- * boids, then position-based attraction, and finally no orientation
- * interaction again — but with bodies that collide.
+/* A reading order, not an alphabet. No interaction at all, then the first real
+ * one — metric alignment — and then, straight away, its opposite: agents that
+ * align on nothing and only bump into each other, and gather anyway. The pair
+ * is the point. Vicsek says a group orders because its members copy each
+ * other; the very next entry says a group can structure itself with no
+ * copying at all, which is the more surprising half and lands best while
+ * Vicsek is still in the eye.
+ *
+ * After that the variations: the two other ways to align (by count, on an
+ * axis), the zonal boids, and position-based attraction.
  *
  * The ids are not the display names and never follow them: they appear in the
  * URL fragment, so renaming a model in the interface must not break a link
@@ -59,11 +65,11 @@ import mips from './mips.js';
 export const allModels = [
   blind,
   vicsek,
+  mips,
   topological,
   nematic,
   aokiReynoldsCouzin,
   peruani,
-  mips,
 ];
 
 /* Where drafts are shown: on a development host, or on explicit request.

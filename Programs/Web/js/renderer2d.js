@@ -35,6 +35,11 @@ export class Renderer {
     this.ctx = canvas.getContext('2d');
     this.dark = false;
 
+    /* Diameter of an agent's body in box units, or 0 to draw the usual
+     * arrows. Set from outside on every frame, exactly like `dark`: the
+     * renderer is told a length, never which model asked for it. */
+    this.body = 0;
+
     /* Side of the drawing area in CSS pixels, set by resize(). */
     this.size = 0;
   }
@@ -98,15 +103,30 @@ export class Renderer {
        * A corner agent needs all four copies. */
       const x = state.pos[i * 2];
       const y = state.pos[i * 2 + 1];
-      const dxs = x > 1 - REACH ? [0, -1] : x < REACH ? [0, 1] : [0];
-      const dys = y > 1 - REACH ? [0, -1] : y < REACH ? [0, 1] : [0];
+      /* A body is drawn at its own diameter, so the margin has to grow with
+       * it — a disc of σ = 0.05 reaches ten times further than an arrow. */
+      const reach = Math.max(REACH, this.body / 2);
+      const dxs = x > 1 - reach ? [0, -1] : x < reach ? [0, 1] : [0];
+      const dys = y > 1 - reach ? [0, -1] : y < reach ? [0, 1] : [0];
 
       for (const dx of dxs) {
         for (const dy of dys) {
-          this._triangle(x + dx, y + dy, heading);
+          if (this.body > 0) this._disc(x + dx, y + dy);
+          else this._triangle(x + dx, y + dy, heading);
         }
       }
     }
+  }
+
+  /* One agent drawn as its body: a disc of the declared diameter. No heading
+   * in the shape — the colour still carries it — because for a model whose
+   * whole mechanism is that bodies cannot overlap, what the visitor needs to
+   * see is the packing, and an arrow is not the size of anything. */
+  _disc(x, y) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    ctx.arc(x, 1 - y, this.body / 2, 0, 2 * Math.PI);
+    ctx.fill();
   }
 
   /* One agent, at box coordinates (x, y) with heading angle a.

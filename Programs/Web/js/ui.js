@@ -11,6 +11,18 @@ import { models, byId } from './models/index.js';
 import { COMMON_PARAMS } from './common.js';
 import { LANGUAGES, label, t, preferredLanguage } from './i18n.js';
 
+/* A parameter descriptor may declare a different range in three dimensions,
+ * under `dim3`, whose fields override the base ones when the 3D view is on.
+ *
+ * Only MIPS needs it so far, and for a reason no amount of renaming would
+ * fix: σ is the diameter of a body, so the same number is an *area* fraction
+ * in 2D and a *volume* fraction in 3D — nπσ²/4 against n(π/6)σ³ — and the
+ * crowd it describes is not the same crowd. A single range cannot serve both.
+ *
+ * This is what makes the panel worth rebuilding on a dimension switch, which
+ * it did not use to be. */
+const forDim = (p, dim) => (dim === 3 && p.dim3 ? { ...p, ...p.dim3 } : p);
+
 export class UI {
 
   /* handlers: { onParam(key, value), onShuffle(), onModel(model), onDim(dim) } */
@@ -116,6 +128,14 @@ export class UI {
 
     this.dim = dim;
     this._applyDim();
+
+    /* The model's sliders are rebuilt, because their ranges may depend on the
+     * dimension. The values in hand carry over rather than resetting to the
+     * defaults — the visitor did not ask to lose them — and _buildParams
+     * clamps them into whatever the new range allows. main.js reads `values`
+     * at step time, so there is nothing else to tell. */
+    if (this.model) this._buildParams(this.model.params, this.el.params, { ...this.values });
+
     this.handlers.onDim(dim);
   }
 
@@ -176,8 +196,15 @@ export class UI {
   _buildParams(params, container, restore) {
     container.replaceChildren();
 
-    for (const p of params) {
-      this.values[p.key] = restore?.[p.key] ?? p.value;
+    for (const descriptor of params) {
+      const p = forDim(descriptor, this.dim);
+
+      /* Clamped, not merely taken. A range that narrows with the dimension —
+       * or a value remembered from a wider one — would otherwise leave the
+       * slider showing one number while `values` holds another, and the
+       * simulation would run on the number nobody can see. That is the same
+       * trap as a default that misses a step, one indirection further out. */
+      this.values[p.key] = Math.min(p.max, Math.max(p.min, restore?.[p.key] ?? p.value));
 
       const row = document.createElement('div');
       row.className = 'param';

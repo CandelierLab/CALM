@@ -61,8 +61,22 @@ export class Renderer3d {
     this.geometry = new THREE.ConeGeometry(RADIUS, LENGTH, SEGMENTS);
     this.material = new THREE.MeshLambertMaterial();
 
+    /* The other shape an agent can take: its own body, a sphere of unit
+     * diameter scaled per instance to whatever diameter it is told.
+     *
+     * Opaque, like the cones. A translucent version was tried and dropped:
+     * seeing through the flock costs the depth cue that shading gives, and a
+     * cloud of blended colours reads as fog rather than as bodies. */
+    this.ballGeometry = new THREE.SphereGeometry(0.5, 12, 8);
+    this.ballMaterial = new THREE.MeshLambertMaterial();
+
+    /* Diameter of an agent's body in box units, or 0 for the usual cones.
+     * Set from outside on every frame, exactly like `dark`. */
+    this.body = 0;
+
     this.mesh = null;
     this.capacity = 0;
+    this.meshIsBall = false;
 
     /* Lighting: one directional light fixed to the camera plus a soft ambient
      * fill, so an agent's shade reads as its facing rather than as where it
@@ -163,7 +177,9 @@ export class Renderer3d {
    * slider outgrows it — and kept when the count merely drops, with `count`
    * limiting what is drawn. */
   _ensure(n) {
-    if (this.mesh !== null && this.capacity >= n) {
+    const ball = this.body > 0;
+
+    if (this.mesh !== null && this.capacity >= n && this.meshIsBall === ball) {
       this.mesh.count = n;
       return;
     }
@@ -173,8 +189,15 @@ export class Renderer3d {
       this.mesh.dispose();
     }
 
+    /* Rebuilt on a change of shape as well as on a change of capacity: an
+     * InstancedMesh is tied to one geometry, and switching models switches
+     * the shape under it. */
+    this.meshIsBall = ball;
     this.capacity = Math.max(n, 128);
-    this.mesh = new THREE.InstancedMesh(this.geometry, this.material, this.capacity);
+    this.mesh = new THREE.InstancedMesh(
+      ball ? this.ballGeometry : this.geometry,
+      ball ? this.ballMaterial : this.material,
+      this.capacity);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.instanceColor =
       new THREE.InstancedBufferAttribute(new Float32Array(this.capacity * 3), 3);
@@ -189,6 +212,7 @@ export class Renderer3d {
     const n = state.n;
 
     this._ensure(n);
+    const ball = this.meshIsBall;
 
     /* Idle rotation, until the visitor drags. A still 3D projection is very
      * hard to read; a slow turn supplies the parallax that makes depth
@@ -197,7 +221,15 @@ export class Renderer3d {
 
     const background = this.dark ? 0x000000 : 0xffffff;
     this.scene.background = new THREE.Color(background);
-    this.box.material.color.set(this.dark ? 0x777777 : 0x999999);
+
+    /* Grey and opacity of the wireframe, per theme. What matters is not the
+     * grey but the level the line reaches once the blend with the background
+     * has taken its share: 0x777777 at 0.6 over black came out near 0x47, and
+     * on a screen turned down low that is nothing at all. The dark theme is
+     * set to land near 0x96 instead; the light one, over white, was never the
+     * problem and is left alone. */
+    this.box.material.color.set(this.dark ? 0xbbbbbb : 0x999999);
+    this.box.material.opacity = this.dark ? 0.8 : 0.6;
 
     /* Camera on its orbit, looking at the centre of the box. */
     const cx = Math.cos(this.pitch);
@@ -223,9 +255,18 @@ export class Renderer3d {
         state.dir[o + 1],
         dim === 3 ? state.dir[o + 2] : 0).normalize();
 
-      /* The cone models +y, so the instance rotation is whatever takes +y to
-       * the heading. */
-      this._quaternion.setFromUnitVectors(this._up, this._heading);
+      if (ball) {
+        /* A sphere has no facing to set, only a size. The heading is still
+         * read, because the colour is made from it. */
+        this._quaternion.identity();
+        this._scale.set(this.body, this.body, this.body);
+      } else {
+        /* The cone models +y, so the instance rotation is whatever takes +y
+         * to the heading. */
+        this._quaternion.setFromUnitVectors(this._up, this._heading);
+        this._scale.set(1, 1, 1);
+      }
+
       this._offset.set(x, y, z);
       this._matrix.compose(this._offset, this._quaternion, this._scale);
       this.mesh.setMatrixAt(i, this._matrix);

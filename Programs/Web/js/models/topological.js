@@ -33,22 +33,13 @@ export default {
   },
 
   description: {
-    fr: 'Les agents topologiques s’alignent sur leurs <i>k</i> plus proches '
-      + 'voisins, quelle que soit leur distance : le voisinage se compte, il '
-      + 'ne se mesure pas. C’est ce qu’on observe chez les étourneaux, qui '
-      + 'interagissent avec six ou sept voisins et non dans un rayon donné '
-      + '(Ballerini <i>et al.</i>, 2008). Comparez avec Vicsek en réduisant le '
-      + 'nombre d’agents : le voisinage métrique se vide et l’ordre s’effondre, '
-      + 'le voisinage topologique ne se vide jamais et le groupe reste '
-      + 'cohérent — de quoi survivre à un faucon qui vient d’ouvrir la nuée.',
-    en: 'Topological agents align on their <i>k</i> nearest neighbours, '
-      + 'however far away: the neighbourhood is counted, not measured. This is '
-      + 'what starlings actually do — they interact with six or seven '
-      + 'neighbours rather than within a radius (Ballerini <i>et al.</i>, '
-      + '2008). Compare with Vicsek by lowering the agent count: a metric '
-      + 'neighbourhood empties and the order collapses, a topological one '
-      + 'never empties and the flock stays coherent — which is what it takes '
-      + 'to survive a falcon tearing the group open.',
+    fr: 'Ces agents s’alignent sur leurs <i>k</i> plus proches voisins, '
+      + '<b>quelle que soit leur distance</b>. C’est ce qu’on observe chez les '
+      + 'étourneaux, qui interagissent avec six ou sept voisins et non dans un '
+      + 'rayon donné.',
+    en: 'These agents align on their <i>k</i> nearest neighbours, <b>however '
+      + 'far away they are</b>. This is what starlings do: they interact with '
+      + 'six or seven neighbours rather than within a given radius.',
   },
 
   illustration: 'Topological',

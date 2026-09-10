@@ -115,6 +115,16 @@ function frame(now) {
   /* The renderer's theme is owned by the UI, which can flip it at any time. */
   renderer.dark = ui.dark;
 
+  /* A model may ask to be drawn as bodies rather than as arrows, by naming
+   * the parameter that gives their diameter. MIPS is the case: its agents
+   * *are* discs of diameter σ, and whether they touch is the whole mechanism,
+   * so an arrow of some other fixed size shows the wrong thing.
+   *
+   * Resolved here rather than in the renderers, which know nothing of models
+   * and are handed a length the same way they are handed a theme. */
+  const shape = ui.model.shape;
+  renderer.body = shape?.kind === 'ball' ? (ui.values[shape.size] ?? 0) : 0;
+
   /* The 3D view turns slowly on its own until the visitor drags it, so it
    * needs to know how much time passed. The 2D one ignores the argument. */
   renderer.draw(state, elapsed / 1000);

@@ -98,6 +98,18 @@ def browser(headed):
 
     driver_path = shutil.which("geckodriver") or "/snap/bin/geckodriver"
     driver = webdriver.Firefox(options=options, service=Service(driver_path))
+
+    # Selenium's own HTTP client gives up on a command after two minutes, and
+    # that is not enough here: unit.html runs every test synchronously while
+    # the page loads, so `driver.get()` does not return until the physics is
+    # finished — a page load whose length is the length of the test suite. The
+    # MIPS separation test pushed it past the limit, and the suite then fails
+    # with a read timeout that looks nothing like a slow test.
+    try:
+        driver.command_executor._client_config.timeout = 900
+    except AttributeError:
+        pass                      # older selenium: the default was generous
+
     driver.set_window_size(1400, 900)
     return driver
 
@@ -576,6 +588,45 @@ def registry_suite(driver, base, r):
     r.check("[registry] a model without constraints is left alone",
             js("return document.getElementById('param-r').value") == "0.18",
             js("return document.getElementById('param-r').value"))
+
+    # ─── ranges that depend on the dimension
+    #
+    # A descriptor may widen itself in 3D, under `dim3`. MIPS is the case that
+    # forced it: sigma is the diameter of a body, so the same number is an area
+    # fraction in 2D and a volume fraction in 3D, and one range cannot serve
+    # both. The panel therefore has to be rebuilt when the view is switched,
+    # which it did not use to be.
+    dim_button = lambda label: js(
+        f"[...document.querySelectorAll('#dims button')]"
+        f".find(b => b.textContent === '{label}').click()")
+    sigma = lambda field: js(
+        f"return document.getElementById('param-sigma').{field}")
+
+    select().select_by_value("mips")
+    time.sleep(0.4)
+    r.check("[registry] sigma is capped for the plane", sigma("max") == "0.05", sigma("max"))
+
+    dim_button("3D")
+    time.sleep(1.2)
+    r.check("[registry] sigma widens in space", sigma("max") == "0.2", sigma("max"))
+
+    # The value has to survive the switch, and a value only the wider range
+    # allows has to be pulled back when the narrower one returns — otherwise
+    # the browser rebases the slider silently and the simulation runs on a
+    # number nobody can see.
+    slide("sigma", 0.15)
+    time.sleep(0.3)
+    r.check("[registry] a 3D-only value holds while in 3D", sigma("value") == "0.15", sigma("value"))
+
+    dim_button("2D")
+    time.sleep(1.2)
+    r.check("[registry] coming back to the plane clamps sigma",
+            sigma("max") == "0.05" and float(sigma("value")) <= 0.05,
+            f"max {sigma('max')}, value {sigma('value')}")
+    r.check("[registry] the clamped value is the one in use",
+            js("return document.querySelector('#model-params output').textContent")
+            == f"{float(sigma('value')):.3f}",
+            js("return document.querySelector('#model-params output').textContent"))
 
     r.check("[registry] no JS error over the suite",
             not js("return window.__errors || []"),

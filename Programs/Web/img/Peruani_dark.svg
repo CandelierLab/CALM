@@ -9,7 +9,7 @@
 
     <!-- vision cone: radius R, half-angle beta -->
     <path d="M 60,50 L 95.35,7.87 A 55,55 0 0 1 95.35,92.13 Z"
-          fill="#87aade" stroke="none"/>
+          fill="#87aade" fill-opacity="0.28" stroke="none"/>
 
     <!-- heading axis and the radius R -->
     <path d="M 60,50 L 126,50" stroke="#b3b3b3" stroke-width="0.7"

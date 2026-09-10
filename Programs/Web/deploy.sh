@@ -114,9 +114,16 @@ case "$mime" in
 	*) echo "   ⚠ type MIME inattendu : les modules ES risquent d'être refusés." >&2 ;;
 esac
 
-# The draft model must not be on the public site.
-if curl -s -m 20 "${URL}js/models/index.js" | grep -q "mips from"; then
-	echo "   note : le registre contient encore mips (masqué à l'exécution par draft)."
+# A draft ships with everything else and is hidden at runtime, so the public
+# site then shows less than the developer sees. Worth naming, whichever model
+# it is — MIPS used to be the one, and no longer is.
+# `|| true` parce que grep sort en 1 quand il ne trouve rien, et que le script
+# tourne sous `set -euo pipefail` : sans cela, n'avoir aucun brouillon — le cas
+# normal — interrompt le déploiement juste avant sa vérification finale.
+drafts=$(grep -l "draft: true" "$LOCAL"/js/models/*.js 2>/dev/null \
+	| xargs -r -n1 basename | sed 's/\.js$//' | tr '\n' ' ' || true)
+if [ -n "$drafts" ]; then
+	echo "   note : brouillon(s) envoyé(s), masqué(s) à l'exécution : $drafts"
 fi
 
 if (( failures )); then

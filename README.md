@@ -73,6 +73,14 @@ Sept modèles sont disponibles :
   dans un rayon *r*. L'alignement est leur seule interaction, et il suffit à
   faire émerger un mouvement d'ensemble. Montez *r*, et le groupe s'ordonne ;
   montez le bruit de réorientation, et l'ordre se défait.
+- **Répulsion stérique (MIPS)** — aucune interaction d'orientation, seulement
+  des corps de diamètre *σ* qui ne peuvent pas se traverser. Et pourtant le
+  groupe se sépare en amas denses et en vide : il s'agrège *parce qu'il se
+  repousse*. Un agent qui butte contre les autres continue de pousser, parce
+  que son cap ne tourne que par diffusion ; il ralentit là où c'est encombré,
+  donc il y reste plus longtemps. Montez *σ* et le nombre d'agents, baissez le
+  bruit, et la séparation s'installe — en 2D ; la 3D n'atteint pas la fraction
+  volumique qu'il faudrait, voir `AGENTS.md`.
 - **Alignement topologique (Ballerini)** — les agents s'alignent sur leurs *k* plus proches voisins,
   quelle que soit la distance : le voisinage se compte, il ne se mesure pas.
   C'est ce que font les étourneaux (Ballerini *et al.*, *PNAS* **105**, 1232,
@@ -88,9 +96,6 @@ Sept modèles sont disponibles :
   dans un cône de vision, sans aucun alignement des vitesses. Le cône n'étant
   pas réciproque, on obtient des agrégats, des rondes et des files à meneurs.
   D'après Barberis & Peruani, *Phys. Rev. Lett.* **117**, 248001 (2016).
-- **Particules actives répulsives (MIPS)** — aucune interaction d'orientation,
-  seulement une répulsion entre corps. ⚠️ Ce modèle ne produit pas la
-  séparation de phase dont il porte le nom : voir la réserve dans `AGENTS.md`.
 
 ## Deux vues
 
@@ -135,8 +140,8 @@ dans les tests, mais n'apparaît pas dans le sélecteur du site public. Ajouter
 `?draft` à l'URL les fait réapparaître, ce qui permet d'en vérifier un
 directement en ligne.
 
-C'est le cas des **particules actives répulsives (MIPS)**, qui ne produisent
-pas la séparation de phase dont elles portent le nom.
+Aucun modèle n'est en brouillon aujourd'hui : **MIPS** était le dernier, et il
+est publié depuis qu'il produit bien la séparation de phase.
 
 ## Licence
 

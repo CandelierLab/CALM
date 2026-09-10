@@ -31,16 +31,14 @@ export default {
   },
 
   description: {
-    fr: 'Les agents de Vicsek s’alignent sur leurs voisins proches : à chaque '
-      + 'instant, ils prennent l’orientation moyenne de tous les agents situés '
-      + 'dans un rayon <i>r</i> autour d’eux. L’alignement est leur seule '
-      + 'interaction, et il suffit à faire émerger un mouvement d’ensemble — '
-      + 'que le bruit de réorientation vient défaire.',
-    en: 'Vicsek agents align on their close neighbours: at each step they take '
-      + 'the mean orientation of every agent within a radius <i>r</i> around '
-      + 'them. Alignment is their only interaction, and it is enough for '
-      + 'collective motion to emerge — which the reorientation noise then '
-      + 'works against.',
+    fr: 'À chaque instant, les agents de Vicsek prennent l’orientation moyenne '
+      + 'de tous les agents situés dans un rayon <i>r</i> autour d’eux. '
+      + 'L’alignement est leur seule interaction, et il suffit à faire émerger '
+      + 'de l’<b>agrégation</b> — que le bruit de réorientation vient défaire.',
+    en: 'At every instant, Vicsek agents take the mean orientation of every '
+      + 'agent within a radius <i>r</i> of them. Alignment is their only '
+      + 'interaction, and it is enough to make <b>aggregation</b> emerge — '
+      + 'which the reorientation noise undoes.',
   },
 
   illustration: 'Vicsek',

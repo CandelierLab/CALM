@@ -51,11 +51,11 @@ js/i18n.js            chaînes bilingues de l'interface
 js/models/index.js    le registre
 js/models/blind.js    les agents aveugles
 js/models/vicsek.js   les agents de Vicsek
+js/models/mips.js     répulsion stérique, sous-pas
 js/models/topological.js   alignement sur les k plus proches
 js/models/nematic.js  alignement sur un axe
 js/models/aoki-reynolds-couzin.js   les trois zones concentriques
 js/models/peruani.js  attraction dans un cône de vision
-js/models/mips.js     particules actives répulsives
 img/                  illustrations, une paire clair/sombre par modèle
 vendor/three.min.js   three.js r160, build UMD
 tests/                les suites de tests
@@ -324,7 +324,9 @@ retendra :
 - « la fraction d'agents dans le plus grand amas mesure l'agrégation » est
   **inutilisable ici** : à cette densité la connectivité est au seuil de
   percolation, et deux tirages du *même* modèle aveugle donnent 36 % et 69 %.
-  Cette mesure avait fait croire à une agrégation MIPS qui n'existe pas.
+  Cette mesure avait d'abord fait croire à une agrégation MIPS qui n'existait
+  pas encore, puis aurait tout aussi bien pu la manquer une fois réelle. Ce
+  qui est lu maintenant est le nombre moyen de voisins dans 2σ.
 
 Une conséquence de tout cela : le contrat du registre vérifie désormais que
 chaque valeur par défaut **tombe sur un cran de son curseur**. Sans quoi le
@@ -405,8 +407,11 @@ pas du tout. Les brouillons apparaissent sur un hôte local (`localhost`,
 `127.0.0.1`, `*.local`, une page `file://`) et, partout, sur demande explicite
 avec `?draft` — ce qui permet de vérifier une correction directement en ligne.
 
-Seul `mips` est un brouillon aujourd'hui, pour la raison consignée plus haut.
-Son fichier et ses illustrations partent quand même sur le serveur, ce qui est
+Aucun modèle n'est un brouillon aujourd'hui : `mips` était le dernier, et il
+est publié depuis qu'il produit la séparation dont il porte le nom. Le
+mécanisme reste testé — la suite marque un modèle en brouillon le temps du
+test plutôt que de dépendre de celui qui va mal. Un brouillon, quand il y en
+a un, part quand même sur le serveur avec ses illustrations, ce qui est
 volontaire : c'est ce qui rend `?draft` utilisable.
 
 `showsDrafts()` prend un objet `location` en argument, donc le filtrage se
@@ -454,17 +459,23 @@ n'a **pas** été modifié, conformément à la consigne.
 | --- | --- | --- | --- |
 | Agents aveugles | `blind` | aucun | modèle nul |
 | Alignement métrique (Vicsek) | `vicsek` | `r` | version Qt |
+| Répulsion stérique (MIPS) | `mips` | `σ` | ARCMP **6**, 219 (2015) |
 | Alignement topologique (Ballerini) | `topological` | `k` | PNAS **105**, 1232 (2008) |
 | Alignement nématique | `nematic` | `r` | PRL **104**, 184502 (2010) |
 | Boids (Aoki - Reynolds - Couzin) | `aoki-reynolds-couzin` | `Rrep`, `Ral`, `Ratt`, `α` | version Qt |
 | Cône de vision (Peruani) | `peruani` | `R`, `β`, `γ` | PRL **117**, 248001 (2016) |
-| Séparation de phase (MIPS) | `mips` | `σ`, `A` | voir la réserve ci-dessous |
 | Perceptrons | — | `w1`…`w4`, `δ` | **à porter** |
 
 Les noms affichés désignent le **mécanisme** plutôt que les auteurs, avec la
 référence entre parenthèses : c'est ce que le visiteur a besoin de savoir pour
-choisir, et cela met les trois formes d'alignement côte à côte dans le
-sélecteur.
+choisir, et cela rend l'ordre du sélecteur lisible d'un coup d'œil.
+
+Cet ordre place **MIPS juste après Vicsek**, et non en fin de liste : Vicsek
+dit qu'un groupe s'ordonne parce que ses membres se copient, MIPS dit qu'un
+groupe peut se structurer sans copier quoi que ce soit. C'est la moitié la
+plus surprenante, et elle porte le mieux tant que Vicsek est encore sous les
+yeux. Les deux autres formes d'alignement — par comptage, sur un axe —
+viennent après, comme des variations sur la première.
 
 Les `id` ne suivent **pas** les noms affichés, et ne doivent pas les suivre :
 ils apparaissent dans le fragment d'URL, donc renommer un modèle dans
@@ -511,25 +522,67 @@ Le test mesure les deux paramètres d'ordre à la fois — nématique 0,99,
 polarisation 0,18 — ce qui est la signature de la phase et la distingue de
 Vicsek.
 
-**Les particules actives répulsives** n'ont aucune interaction d'orientation :
-seule une répulsion à courte portée, réciproque, et c'est le premier modèle qui
-a besoin de `State.displace()` plutôt que du seul `state.move()`.
+**La répulsion stérique** n'a aucune interaction d'orientation : seule une
+répulsion à courte portée, réciproque, et c'est le premier modèle qui a besoin
+de `State.displace()` plutôt que du seul `state.move()`. C'est aussi le seul
+qui subdivise son pas de temps.
 
-> **Réserve, à lire avant de présenter ce modèle.** Il ne produit **pas** la
-> séparation de phase (MIPS) dont il porte le nom. Mesuré sans ambiguïté : le
-> nombre moyen de voisins dans 3σ vaut 18,1 contre 17,9 pour des marches
-> aveugles — identique, et reproductible au dixième — sur un balayage en
-> densité (φ de 0,28 à 0,63), en intensité de répulsion (`A` de 0,006 à 0,05)
-> et en persistance (ℓ_p de 1σ à 1000σ). Le groupe reste homogène.
+> **Ce modèle a longtemps été un brouillon, parce qu'il ne produisait pas la
+> séparation dont il porte le nom.** Le diagnostic d'alors — « la boîte fait
+> une trentaine de diamètres là où la littérature en utilise des centaines »
+> — était faux. La cause était l'intégration, et elle se lit en deux lignes.
 >
-> La raison la plus probable n'est pas réglable : la boîte fait une unité et σ
-> vaut 0,03, donc le système mesure une trentaine de diamètres là où la
-> littérature en utilise des centaines. Un germe critique n'y tient pas.
+> Pour une paire au recouvrement `u = σ − r`, une répulsion harmonique
+> appliquée comme un déplacement de `(A/σ)·u` par agent donne la récurrence
+> `u ← u(1 − 2A/σ)`. Le défaut d'alors, `A = 0,02` avec `σ = 0,03`, plaçait
+> `2A/σ` à 1,33 : facteur **−0,33**, donc chaque contact dépassait en s'ouvrant
+> puis revenait. C'était le mouvement « peu naturel » qu'on voyait. Le curseur
+> montait à `A = 0,05`, où le facteur vaut −19 et où seul le plafond par agent
+> tenait la simulation à l'écran.
 >
-> Ce que le code fait est correct et testé (répulsion réciproque, aucune
-> polarisation, réduction exacte au modèle aveugle quand `A` = 0). Ce qu'il ne
-> fait pas, c'est le phénomène. À décider : le garder en le décrivant
-> honnêtement, le renommer, ou le retirer.
+> Et les réglages stables étaient bien trop mous pour bloquer : l'équilibre
+> `A(1 − r/σ) = v₀` tombait à `r = 0,7σ`, soit un tiers d'interpénétration, un
+> diamètre effectif de 0,7σ et une fraction surfacique effective réduite de
+> moitié. Mesuré sur cette version : `v/v₀ = 0,52` dans les voisinages les
+> plus denses, et un courant `φ·v(φ)` **croissant partout**, donc le critère
+> d'instabilité `v + ρv′ < 0` (Cates & Tailleur, ARCMP **6**, 219, 2015)
+> n'était atteint nulle part sur les curseurs.
+>
+> Durcir le contact demande `A ≈ 4σ`, que le pas explicite ne peut pas porter.
+> Les deux exigences ne se concilient qu'à pas plus petit, d'où le **sous-pas**
+> : l'image reste une unité de temps, la physique tourne en `h = 1/k` à
+> l'intérieur. L'advection s'échelonne en `h` et le bruit angulaire en `√h`,
+> donc la vitesse visible et la diffusion de rotation sont inchangées — c'est
+> testé — et seuls les contacts changent.
+>
+> Les deux constantes du fichier (`CONTRACTION = 0,4`, la fraction de
+> recouvrement effacée par sous-pas, sous 1/2 donc jamais d'oscillation ;
+> `OVERLAP = 0,05`, la profondeur d'équilibre en unités de σ) fixent `k` et ne
+> laissent que **σ** sur le panneau. `A` a disparu : c'était un curseur dont la
+> moitié haute était numériquement instable.
+>
+> Après correction, à n = 900, σ = 0,03, bruit = 0,03 : `v/v₀ = 0,19–0,24` dans
+> les voisinages denses, `φ·v` non monotone (maximum vers φ_loc ≈ 0,55 puis
+> décroissance), et le nombre moyen de voisins dans 2σ passe au-dessus du même
+> système **sans motilité**. La séparation se voit à l'œil en une minute.
+>
+> **Limite connue, en 3D : pas de séparation, et ce n'est pas le plafond de σ
+> qui l'empêche.** Mesuré à mille agents, σ poussé au-delà du curseur : la
+> répulsion marche — le plus proche voisin moyen tombe à 0,99 σ pour σ = 0,08
+> et 0,95 σ pour σ = 0,10, contre 0,70 σ et 0,57 σ en marche aveugle — mais le
+> groupe reste homogène à tout σ, y compris à σ = 0,10 où la fraction
+> volumique vaut 0,52, une densité de MIPS tout à fait ordinaire. Le rapport
+> du nombre de voisins dans 2σ à celui du modèle aveugle reste entre 0,97 et
+> 1,02.
+>
+> Ce qui manque, c'est la place. À densité fixée, la boîte mesure √n diamètres
+> en 2D mais **n^⅓** en 3D : cinq cents agents donnent 33 σ en 2D, où deux
+> phases tiennent, tandis que mille n'en donnent que 12 en 3D, où elles ne
+> tiennent pas. Égaler le cas 2D demanderait une vingtaine de milliers
+> d'agents, contre un plafond de mille fixé par le budget d'image. Le coût de
+> MIPS étant linéaire en n, quinze mille agents à quatre sous-pas font ~46 ms
+> par image : c'est jouable, mais cela touche le plafond commun à tous les
+> modèles et le rendu three.js, pas ce fichier.
 
 ## Reste à porter
 

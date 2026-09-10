@@ -459,8 +459,7 @@ const REGIMES = {
                             3: { rrep: 0.03, ral: 0.25, ratt: 0.45, alpha: 0.39 } },
   peruani:                { 2: { R: 0.15, beta: 1.2, gamma: 0.5 },
                             3: { R: 0.25, beta: 1.2, gamma: 0.5 } },
-  mips:                   { 2: { sigma: 0.03, push: 0.02 },
-                            3: { sigma: 0.06, push: 0.02 } },
+  mips:                   { 2: { sigma: 0.03 }, 3: { sigma: 0.05 } },
 };
 
 for (const dim of DIMS) {
@@ -845,27 +844,42 @@ for (const dim of DIMS) {
 {
   const mips = byId('mips');
 
-  /* NOT tested here: that this model separates into phases.
+  /* Mean speed along the heading, in units of v0, among the agents whose
+   * neighbourhood is denser than `phi`. Local packing fraction is read off
+   * the count within 2σ, which for uniform disks of diameter σ is
+   * (count + 1)/16.
    *
-   * It does not, at any setting reachable from the interface, and the
-   * measurements are unambiguous. The mean number of neighbours within 3σ
-   * comes out at 18.1 against 17.9 for blind walks — identical, and
-   * reproducible to a tenth across runs — over a sweep of density (φ from
-   * 0.28 to 0.63), repulsion strength (A from 0.006 to 0.05) and persistence
-   * (ℓ_p from 1σ to 1000σ). The flock stays homogeneous.
-   *
-   * An earlier version of this test claimed success on the fraction of agents
-   * in the largest connected cluster, 95% against 36%. That was an artefact:
-   * at this density the linkage sits on a percolation threshold, where
-   * connectivity swings enormously without the structure changing at all —
-   * two *blind* control runs gave 36% and 69%.
-   *
-   * The likely reason is the size of the system, and no parameter can fix it:
-   * the box is one unit across and σ is 0.03, so the domain is about thirty
-   * diameters wide, where the MIPS literature works with hundreds.
-   *
-   * So what is asserted is only what the code actually does.
-   */
+   * This is the quantity the MIPS literature reads the instability off. With
+   * v(φ) linear — v = v0(1 − φ/φ*), measured by Fily & Marchetti, PRL 108,
+   * 235702 (2012) — the current φ·v(φ) turns over, and the separation becomes
+   * possible, once v has fallen below v0/2. The first version of this model
+   * never got there: it still ran at 0.52 v0 in its densest neighbourhoods,
+   * because bodies interpenetrated to 0.7σ. */
+  const crowdedSpeed = (state, p, phi) => {
+    const { n, dim } = state;
+    const before = Float32Array.from(state.pos);
+    const dir = Float32Array.from(state.dir);
+    mips.step(state, p);
+
+    let total = 0, counted = 0;
+    for (let i = 0; i < n; i++) {
+      let neighbours = 0;
+      for (let j = 0; j < n; j++) {
+        if (j !== i && distance(state, i, j) < 2 * p.sigma) neighbours++;
+      }
+      if ((neighbours + 1) / 16 < phi) continue;
+
+      let projection = 0;
+      for (let k = 0; k < dim; k++) {
+        let d = state.pos[i * dim + k] - before[i * dim + k];
+        d -= Math.round(d);
+        projection += d * dir[i * dim + k];
+      }
+      total += projection / p.speed;
+      counted++;
+    }
+    return counted ? total / counted : NaN;
+  };
 
   /* Reciprocal repulsion, deterministically: two overlapping agents push
    * apart, and by equal and opposite amounts. */
@@ -877,27 +891,108 @@ for (const dim of DIMS) {
     aim(state, 1, 0, 1, 0);           // headings across the separation
 
     const before = state.pos[dim] - state.pos[0];
-    mips.step(state, { speed: 0, noise: 0, sigma: 0.04, push: 0.004 });
+    mips.step(state, { speed: 0, noise: 0, sigma: 0.04 });
     const after = state.pos[dim] - state.pos[0];
 
     ok(`${dim}D: overlapping agents push apart`, after > before, `${before} → ${after}`);
   }
 
+  /* A contact relaxes monotonically. This is what the sub-step buys, and it
+   * is the defect that made the old motion look wrong: a repulsion applied as
+   * a displacement of (A/σ)·u per agent gives the pair map u ← u(1 − 2A/σ),
+   * which at the old default A/σ = 0.67 had factor −0.33. Every contact
+   * overshot into a gap and came back, and the flock buzzed instead of
+   * jamming. Motility off, so the repulsion is the only thing moving them. */
+  {
+    const sigma = 0.03;
+    const state = new State(2, 2);
+    place(state, 0, 0.5, 0.5);
+    place(state, 1, 0.5 + 0.2 * sigma, 0.5);
+
+    /* Six steps, not more: the overlap decays by a factor of five each time,
+     * and past that the push is smaller than the resolution of a 32-bit
+     * position near 0.5 — the gap would stop changing and a strict test
+     * would read that as a failure. */
+    const gaps = [];
+    for (let k = 0; k < 6; k++) {
+      mips.step(state, { speed: 0, noise: 0, sigma });
+      gaps.push(distance(state, 0, 1));
+    }
+
+    ok('mips: a contact relaxes without ringing',
+       gaps.every((d, i) => i === 0 || d > gaps[i - 1])
+       && gaps[gaps.length - 1] <= sigma + 1e-6,
+       gaps.map((d) => d.toFixed(4)).join(' '));
+  }
+
+  /* The sub-step must be invisible to the visitor. The frame is still one
+   * time unit, so it has to advance by exactly the speed that was set — at
+   * both the ordinary subdivision and the capped one, which are different
+   * code paths through the same arithmetic. */
+  for (const [label, p] of [['10 sous-pas', { speed: 0.006, noise: 0, sigma: 0.03 }],
+                            ['plafonné',    { speed: 0.02,  noise: 0, sigma: 0.005 }]]) {
+    const state = new State(1, 2);
+    const before = [...state.pos];
+    mips.step(state, p);
+
+    let moved = 0;
+    for (let k = 0; k < 2; k++) {
+      let d = state.pos[k] - before[k];
+      d -= Math.round(d);
+      moved += d * d;
+    }
+    ok(`mips: a frame advances by exactly the speed (${label})`,
+       Math.abs(Math.sqrt(moved) - p.speed) < 1e-5, Math.sqrt(moved));
+  }
+
+  /* And the reorientation rate has to survive the subdivision too: the noise
+   * scales as √h, not h, because variances add. Get that wrong and the
+   * persistence length — the quantity MIPS lives on — silently changes with
+   * σ, since σ is what sets the number of sub-steps. Read against the blind
+   * model, which takes the same noise in one go. */
+  {
+    const steps = 300, noise = 0.06;
+    const correlation = (model, p) => {
+      const state = new State(800, 2);
+      const start = Float32Array.from(state.dir);
+      for (let k = 0; k < steps; k++) model.step(state, p);
+      let sum = 0;
+      for (let i = 0; i < state.n; i++) {
+        sum += state.dir[i * 2] * start[i * 2] + state.dir[i * 2 + 1] * start[i * 2 + 1];
+      }
+      return sum / state.n;
+    };
+
+    const subdivided = correlation(mips, { speed: 0.006, noise, sigma: 0.02 });
+    const plain = correlation(byId('blind'), { speed: 0.006, noise });
+
+    /* Loose on purpose: ⟨cos⟩ over 800 agents carries a sampling spread of a
+     * few hundredths, while the mistake this guards against is not subtle —
+     * scaling the noise by h instead of √h would leave the correlation at
+     * 0.96 where it should be 0.58. A tight bound here would only buy flakes. */
+    ok('mips: the sub-step leaves the reorientation rate alone',
+       Math.abs(subdivided - plain) < 0.15,
+       `${subdivided.toFixed(3)} vs ${plain.toFixed(3)}, exp(-Dr t) = ${Math.exp(-(noise ** 2 / 2) * steps).toFixed(3)}`);
+  }
+
   /* No interaction of orientation at all, so no polarisation can build up —
    * this is what separates the mechanism from every other model here. */
   for (const dim of DIMS) {
-    const sigma = dim === 3 ? 0.06 : 0.03;
+    const sigma = dim === 3 ? 0.05 : 0.03;
     const state = new State(500, dim);
     for (let k = 0; k < 1200; k++) {
-      mips.step(state, { speed: 0.006, noise: 0.04, sigma, push: 0.02 });
+      mips.step(state, { speed: 0.006, noise: 0.04, sigma });
     }
     ok(`${dim}D: mips never polarises`, polarisation(state) < 0.25,
        polarisation(state).toFixed(3));
   }
 
-  /* Switch the repulsion off and it is the blind model exactly — asserted bit
-   * for bit, from a shared initial state and with the noise off so that both
-   * models are deterministic.
+  /* Take the bodies away and it is the blind model exactly — asserted bit for
+   * bit, from a shared initial state and with the noise off so that both
+   * models are deterministic. The slider no longer goes down to zero — bodies
+   * are drawn at their diameter now, and a diameter of zero paints nothing —
+   * so this is asserted on the code alone, by calling step() directly. It is
+   * worth keeping: it pins that the model adds contact and nothing else.
    *
    * The obvious version of this test compares cluster sizes between the two,
    * and it does not work: with the noise on, the two runs draw different
@@ -905,36 +1000,79 @@ for (const dim of DIMS) {
    * threshold where it swings wildly. The equality is tested where it is
    * exact instead. */
   for (const dim of DIMS) {
-    const zeroed = new State(60, dim);
+    const bodiless = new State(60, dim);
     const blind = new State(60, dim);
-    blind.pos.set(zeroed.pos);
-    blind.dir.set(zeroed.dir);
+    blind.pos.set(bodiless.pos);
+    blind.dir.set(bodiless.dir);
 
     for (let k = 0; k < 200; k++) {
-      mips.step(zeroed, { speed: 0.006, noise: 0, sigma: 0.03, push: 0 });
+      mips.step(bodiless, { speed: 0.006, noise: 0, sigma: 0 });
       byId('blind').step(blind, { speed: 0.006, noise: 0 });
     }
 
-    ok(`${dim}D: zero push reduces to the blind model exactly`,
-       [...zeroed.pos].every((v, i) => v === blind.pos[i])
-       && [...zeroed.dir].every((v, i) => v === blind.dir[i]));
+    ok(`${dim}D: σ = 0 reduces to the blind model exactly`,
+       [...bodiless.pos].every((v, i) => v === blind.pos[i])
+       && [...bodiless.dir].every((v, i) => v === blind.dir[i]));
   }
 
-  /* And the repulsion does something measurable, even if it is not phase
-   * separation: close pairs become rarer than chance. */
+  /* Bodies that actually block: close pairs become far rarer than chance. */
   {
     const sigma = 0.03;
     const repelling = new State(400, 2);
     for (let k = 0; k < 1200; k++) {
-      mips.step(repelling, { speed: 0.006, noise: 0.04, sigma, push: 0.02 });
+      mips.step(repelling, { speed: 0.006, noise: 0.04, sigma });
     }
     const control = new State(400, 2);
     for (let k = 0; k < 1200; k++) byId('blind').step(control, { speed: 0.006, noise: 0.04 });
 
     const probe = 0.5 * sigma;
     ok('mips keeps bodies apart at short range',
-       meanNeighbours(repelling, probe) < meanNeighbours(control, probe) * 0.6,
+       meanNeighbours(repelling, probe) < meanNeighbours(control, probe) * 0.2,
        `${meanNeighbours(repelling, probe).toFixed(3)} vs ${meanNeighbours(control, probe).toFixed(3)}`);
+  }
+
+  /* ── the phenomenon itself ──────────────────────────────────────────────
+   *
+   * And the control that earns the name: *motility*-induced. The comparison
+   * is against the same bodies at the same density with the propulsion
+   * switched off, not against the blind model — blind agents are an ideal
+   * gas, so any excess over them could be read as plain excluded volume.
+   * Take the motility away and hard disks relax to a homogeneous packing;
+   * put it back and the flock separates, with nothing else changed.
+   *
+   * Read on the mean number of neighbours within 2σ, which is the local
+   * density each agent actually sits in. Deliberately NOT on the fraction of
+   * agents in the largest connected cluster: at these densities the linkage
+   * sits on a percolation threshold, where two runs of the *same* model gave
+   * 36% and 69%. That artefact once made an earlier version of this test
+   * claim a separation that was not there.
+   */
+  {
+    const n = 900, sigma = 0.03;
+    const moving = { speed: 0.006, noise: 0.03, sigma };
+    const motile = new State(n, 2);
+    const still = new State(n, 2);
+
+    for (let k = 0; k < 6000; k++) {
+      mips.step(motile, moving);
+      mips.step(still, { speed: 0, noise: 0.03, sigma });
+    }
+
+    const dense = meanNeighbours(motile, 2 * sigma);
+    const flat = meanNeighbours(still, 2 * sigma);
+
+    /* The margin is deliberately well under what is measured. Coarsening is
+     * slow and stochastic, and four runs of this configuration gave ratios of
+     * 1.09, 1.11, 1.23 and 1.30 — the spread is the physics, not the code.
+     * What the threshold has to separate is those from a flock that does not
+     * separate at all, and the version before the sub-step gave 0.98. */
+    ok('mips separates into dense and empty regions',
+       dense > flat * 1.05, `${dense.toFixed(2)} vs ${flat.toFixed(2)} sans motilité`);
+
+    /* And the reason it can, in the terms the literature states it in. */
+    const v = crowdedSpeed(motile, moving, 0.8);
+    ok('mips: agents are blocked where it is crowded (v < v0/2)',
+       v < 0.5, `v/v0 = ${v.toFixed(3)}`);
   }
 }
 
@@ -971,6 +1109,76 @@ for (const dim of DIMS) {
   ok('its missing sliver reappears at the right edge',
      lit(canvas.width - band, mid, band, 2 * band) > 0);
   ok('nothing painted in an unrelated corner', lit(0, 0, band, band) === 0);
+}
+
+// ─── renderer: bodies are drawn at their own diameter ───────────────────
+
+{
+  const canvas = document.getElementById('probe');
+  const renderer = new Renderer(canvas);
+  renderer.size = 400;
+  renderer.dark = true;
+
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+
+  /* One agent in the middle, drawn as a body rather than an arrow. Heading +x
+   * is hue 0, so it paints pure red and the span is easy to measure. */
+  const state = new State(1, 2);
+  place(state, 0, 0.5, 0.5);
+  aim(state, 0, 1, 0);
+
+  const span = () => {
+    const row = Math.round(canvas.height / 2);
+    const data = ctx.getImageData(0, row, canvas.width, 1).data;
+    let first = -1, last = -1;
+    for (let x = 0; x < canvas.width; x++) {
+      if (data[x * 4] > 100) { if (first < 0) first = x; last = x; }
+    }
+    return first < 0 ? 0 : last - first + 1;
+  };
+
+  renderer.body = 0.1;
+  renderer.draw(state);
+  const wide = span();
+
+  renderer.body = 0.04;
+  renderer.draw(state);
+  const narrow = span();
+
+  /* The whole point of the shape: what is painted is the body, so its width
+   * on screen *is* the diameter the slider shows. A fixed glyph would give
+   * the same span for both. */
+  ok('a body is painted at the diameter it is given',
+     Math.abs(wide - 0.1 * 400 * dpr) <= 2 && Math.abs(narrow - 0.04 * 400 * dpr) <= 2,
+     `${wide} and ${narrow} px for ${0.1 * 400 * dpr} and ${0.04 * 400 * dpr}`);
+
+  /* And a body wide enough to cross an edge has to appear on the far side,
+   * exactly as a triangle does — with the margin following the diameter,
+   * which a fixed one would not. */
+  place(state, 0, 0.01, 0.5);
+  renderer.body = 0.1;
+  renderer.draw(state);
+
+  const lit = (x0, y0, w, h) => {
+    const data = ctx.getImageData(x0, y0, w, h).data;
+    let n = 0;
+    for (let i = 0; i < data.length; i += 4) if (data[i] > 100) n++;
+    return n;
+  };
+  const band = Math.round(30 * dpr);
+  const mid = Math.round(canvas.height / 2) - band;
+
+  ok('a wide body wraps around the edge',
+     lit(canvas.width - band, mid, band, 2 * band) > 0);
+
+  /* Back to arrows when no diameter is given: the renderer must not keep the
+   * shape of the last model that asked for one. */
+  renderer.body = 0;
+  place(state, 0, 0.5, 0.5);
+  renderer.draw(state);
+  ok('no diameter means the arrow comes back', span() > 0 && span() < 0.04 * 400 * dpr,
+     `${span()} px`);
 }
 
 // ─── 2D colour follows the heading ──────────────────────────────────────
@@ -1111,6 +1319,36 @@ for (const dim of DIMS) {
       ok(`${m.id}/${p.key}: default lands on a slider step`,
          Math.abs(steps - Math.round(steps)) < 1e-6,
          `(${p.value} - ${p.min}) / ${p.step} = ${steps}`);
+
+      /* A descriptor may widen or narrow itself in three dimensions, under
+       * `dim3`. The merged result is a descriptor like any other and has to
+       * meet the same contract — including the step rule, which is exactly
+       * the sort of thing an override is well placed to break. */
+      if (p.dim3) {
+        const q = { ...p, ...p.dim3 };
+        ok(`${m.id}/${p.key}: 3D override complete`,
+           Number.isFinite(q.min) && Number.isFinite(q.max)
+           && Number.isFinite(q.step) && Number.isFinite(q.value)
+           && q.max > q.min,
+           JSON.stringify(p.dim3));
+        ok(`${m.id}/${p.key}: 3D default within bounds`,
+           q.value >= q.min && q.value <= q.max);
+
+        const steps3 = (q.value - q.min) / q.step;
+        ok(`${m.id}/${p.key}: 3D default lands on a slider step`,
+           Math.abs(steps3 - Math.round(steps3)) < 1e-6,
+           `(${q.value} - ${q.min}) / ${q.step} = ${steps3}`);
+      }
+    }
+
+    /* A model may ask to be drawn as bodies rather than as arrows, naming the
+     * parameter that gives their diameter. The renderers resolve that name
+     * against the live values, so a name that matches nothing would silently
+     * draw agents of size zero — invisible, with no error anywhere. */
+    if (m.shape) {
+      ok(`${m.id}: shape kind is known`, m.shape.kind === 'ball', m.shape.kind);
+      ok(`${m.id}: shape names one of its own parameters`,
+         m.params.some((p) => p.key === m.shape.size), m.shape.size);
     }
 
     /* A model must not claim a key that the general panel already owns: the
@@ -1138,16 +1376,20 @@ for (const dim of DIMS) {
 // ─── drafts: in the tree, out of the deployed site ──────────────────────
 
 {
-  /* A draft model exists and is tested, but is not offered to visitors. The
-   * rule is evaluated at runtime against the page's own host, because there is
-   * no build step to make the distinction at: what runs here is byte for byte
-   * what gets deployed. */
-  const drafts = allModels.filter((m) => m.draft);
-
-  ok('MIPS is the only draft', drafts.length === 1 && drafts[0].id === 'mips',
-     drafts.map((m) => m.id).join(','));
-  ok('every other model is published',
-     allModels.filter((m) => !m.draft).length === allModels.length - 1);
+  /* A draft model exists in the tree and is tested, but is not offered to
+   * visitors. The rule is evaluated at runtime against the page's own host,
+   * because there is no build step to make the distinction at: what runs here
+   * is byte for byte what gets deployed.
+   *
+   * There is no draft at the moment — MIPS was the last one, and it is
+   * published now that it produces the separation it is named after. So the
+   * filtering is exercised on a model marked draft for the length of the
+   * test. Testing it against whichever model happens to be in trouble is what
+   * made this block need rewriting when MIPS was fixed; the machinery is
+   * worth keeping covered for the next one. */
+  ok('nothing is a draft at the moment',
+     allModels.every((m) => !m.draft),
+     allModels.filter((m) => m.draft).map((m) => m.id).join(','));
 
   ok('drafts show on localhost',
      showsDrafts({ hostname: 'localhost', search: '' }));
@@ -1170,23 +1412,44 @@ for (const dim of DIMS) {
   ok('?draft=1 works too',
      showsDrafts({ hostname: 'calm.labojeanperrin.fr', search: '?lang=fr&draft=1' }));
 
-  const published = publishedModels({ hostname: 'calm.labojeanperrin.fr', search: '' });
-  ok('the deployed registry drops the draft',
-     published.length === allModels.length - 1
-     && !published.some((m) => m.id === 'mips'),
-     published.map((m) => m.id).join(','));
+  /* The filter itself, on a registry that has one. Restored in a finally, so
+   * a failure above cannot leak a draft flag into the tests that follow. */
+  const victim = allModels[allModels.length - 1];
+  try {
+    victim.draft = true;
 
-  const local = publishedModels({ hostname: 'localhost', search: '' });
-  ok('the development registry keeps everything',
-     local.length === allModels.length);
+    const published = publishedModels({ hostname: 'calm.labojeanperrin.fr', search: '' });
+    ok('the deployed registry drops the draft',
+       published.length === allModels.length - 1
+       && !published.some((m) => m.id === victim.id),
+       published.map((m) => m.id).join(','));
 
-  /* And the order survives the filter: the selector must not be reshuffled by
-   * removing one entry. */
-  ok('filtering preserves the order',
-     published.every((m, i) => m === allModels.filter((x) => !x.draft)[i]));
+    const revealed = publishedModels({ hostname: 'calm.labojeanperrin.fr', search: '?draft' });
+    ok('?draft brings it back on the deployed host',
+       revealed.length === allModels.length);
 
-  /* These tests run on 127.0.0.1, so the physics suites above did see MIPS. */
-  ok('this test run exercised the draft', models.some((m) => m.id === 'mips'));
+    const local = publishedModels({ hostname: 'localhost', search: '' });
+    ok('the development registry keeps everything',
+       local.length === allModels.length);
+
+    /* And the order survives the filter: the selector must not be reshuffled
+     * by removing one entry. */
+    ok('filtering preserves the order',
+       published.every((m, i) => m === allModels.filter((x) => !x.draft)[i]));
+  } finally {
+    delete victim.draft;
+  }
+
+  ok('the draft flag was put back', allModels.every((m) => !m.draft));
+
+  /* With nothing marked, every host sees the whole registry. */
+  ok('a registry without drafts is published whole',
+     publishedModels({ hostname: 'calm.labojeanperrin.fr', search: '' }).length
+       === allModels.length);
+
+  /* These tests run on 127.0.0.1, so the physics suites above saw everything. */
+  ok('this test run exercised the whole registry',
+     models.length === allModels.length);
 }
 
 // ─── report ─────────────────────────────────────────────────────────────

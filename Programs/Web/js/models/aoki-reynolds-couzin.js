@@ -48,19 +48,18 @@ export default {
   },
 
   description: {
-    fr: 'Les agents d’Aoki-Reynolds-Couzin ont trois zones concentriques : la '
-      + 'plus proche est une zone de <b>répulsion</b>, la deuxième une zone '
-      + 'd’<b>alignement</b>, la plus éloignée une zone d’<b>attraction</b>. '
-      + 'Un secteur aveugle de demi-angle <i>α</i> les empêche de voir derrière '
-      + 'eux. La répulsion est prioritaire ; sinon alignement et attraction se '
-      + 'combinent. La réorientation étant plafonnée à chaque pas, le groupe '
-      + 'peut se mettre à tourner en tore.',
-    en: 'Aoki-Reynolds-Couzin agents have three concentric zones: the closest '
-      + 'is a <b>repulsion</b> zone, the second an <b>alignment</b> zone, the '
-      + 'furthest an <b>attraction</b> zone. A blind sector of half-angle '
-      + '<i>α</i> keeps them from seeing behind. Repulsion takes priority; '
-      + 'otherwise alignment and attraction are combined. Because the turn is '
-      + 'capped at each step, the group can settle into a milling torus.',
+    fr: 'Les boids ont trois zones concentriques : la plus proche est une zone '
+      + 'de répulsion, la deuxième une zone d’alignement, la plus éloignée une '
+      + 'zone d’attraction. Un secteur aveugle de demi-angle <i>α</i> les '
+      + 'empêche de voir derrière eux. La répulsion est prioritaire ; sinon '
+      + 'alignement et attraction se combinent. La réorientation étant '
+      + 'plafonnée à chaque pas, le groupe peut se mettre à <b>tourner en '
+      + 'tore</b>.',
+    en: 'Boids have three concentric zones: the nearest one repels, the second '
+      + 'aligns, the furthest attracts. A blind sector of half-angle <i>α</i> '
+      + 'keeps them from seeing behind themselves. Repulsion takes priority; '
+      + 'otherwise alignment and attraction combine. Since the turn is capped '
+      + 'at every step, the group can start <b>milling in a torus</b>.',
   },
 
   illustration: 'Aoki-Reynolds-Couzin',

@@ -34,21 +34,21 @@ export default {
   },
 
   description: {
-    fr: 'Les agents nématiques se comportent comme des bâtonnets : sans tête '
-      + 'ni queue, ils s’alignent sur un <b>axe</b> et non sur une direction. '
-      + 'Deux agents qui se croisent en sens inverse sont, pour eux, alignés. '
-      + 'Il en résulte des voies orientées le long d’un axe commun, mais '
-      + 'parcourues <b>dans les deux sens</b> : le groupe est fortement '
-      + 'ordonné alors que sa polarisation reste nulle. C’est le mécanisme des '
-      + 'suspensions bactériennes denses et des bâtonnets granulaires vibrés, '
-      + 'où les collisions alignent les corps sans leur dire où aller.',
-    en: 'Nematic agents behave like rods: with no head and no tail, they align '
-      + 'on an <b>axis</b> rather than a direction. Two agents passing in '
-      + 'opposite directions count as aligned. The result is lanes along a '
-      + 'common axis carrying traffic <b>both ways</b>: the group is strongly '
-      + 'ordered while its polarisation stays at zero. This is the mechanism '
-      + 'behind dense bacterial suspensions and vibrated granular rods, where '
-      + 'collisions align bodies without telling them which way to go.',
+    fr: 'Ces agents se comportent comme des bâtonnets : sans tête ni queue, '
+      + 'ils s’alignent sur un axe sans direction. Deux agents qui se croisent '
+      + 'en sens inverse sont, pour eux, alignés. Il en résulte des voies '
+      + 'orientées le long d’un axe commun, mais parcourues dans les deux '
+      + 'sens : le groupe est <b>fortement ordonné alors que sa polarisation '
+      + 'reste nulle</b>. C’est le mécanisme des suspensions bactériennes '
+      + 'denses et des bâtonnets granulaires vibrés, où les collisions '
+      + 'alignent les corps sans leur dire où aller.',
+    en: 'These agents behave like rods: with no head and no tail, they align '
+      + 'on an axis rather than on a direction. Two agents passing one another '
+      + 'in opposite directions are, to them, aligned. The result is lanes '
+      + 'along a common axis but travelled both ways: the group is <b>strongly '
+      + 'ordered while its polarisation stays zero</b>. This is the mechanism '
+      + 'of dense bacterial suspensions and of vibrated granular rods, where '
+      + 'collisions align bodies without telling them where to go.',
   },
 
   illustration: 'Nematic',
